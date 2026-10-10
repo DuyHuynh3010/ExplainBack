@@ -393,3 +393,45 @@ PDF/DOCX up to 3,000,000 bytes or JSON text. These contracts require coordinatio
 before integration; the merge preserves both implementations without claiming
 that their formats, limits, or operations are interchangeable. Node.js 22+ is the
 current project requirement.
+
+## Block 3A implementation
+
+The canonical implemented analysis operation is now `POST /api/analysis`, taking
+`AnalyzeImportedSourceRequest` with a full ImportedSource and optional
+outputLanguage (`source`, `en`, `vi`). The legacy raw text/PDF analyze request types
+and proposed `/api/source/analyze` path above remain unimplemented compatibility
+examples. Do not use them as the input contract for the new endpoint.
+
+SourceAnalysis adds optional sourceWarnings (ingestion warnings copied unchanged)
+and analysisWarnings (AMBIGUOUS_EVIDENCE/QUESTIONS_PRESENT with blockId). Original
+segments and ingestion metadata stay in the separately retained ImportedSource.
+The schemaVersion stays 1.0; existing synthetic fixtures remain valid. Graph domain
+data still contains no positions or learner evaluation statuses.
+
+See [Source analysis](source-analysis.md) for the Gemini adapter, request/response,
+limits, bounded repair/retry policy, evidence positions, tests and frontend handoff.
+New error codes are AI_NOT_CONFIGURED, AI_TIMEOUT, AI_RATE_LIMITED,
+AI_OUTPUT_INVALID, AI_OUTPUT_TRUNCATED and NO_EXTRACTABLE_KNOWLEDGE.
+The subsequent Block 3B/3C integration implements transcription and evaluation
+using EvaluateTextRequest/EvaluationResult; see [implemented contracts](source-explanations.md).
+
+## Source-analysis UI integration
+
+The source-analysis screen now consumes ImportedSource and SourceAnalysis separately.
+The earlier UI mapping is historical: the active reference map uses a frontend-only
+layout adapter and has no Relationship evaluation statuses. Topic summaries retain
+their statement links; evidence uses block locations and block-local UTF-16 ranges.
+No backend contract changed in this integration. See [UI integration](ui-source-analysis.md).
+Learner evaluation and transcription are now implemented; see [Blocks 3B/3C](source-explanations.md). Source-only graphs remain neutral; feedback overlays preserve source IDs and endpoints.
+
+## Block 3B/3C contract additions
+
+POST /api/transcriptions uses audioFile and TranscriptionResponse. POST
+/api/evaluations requires the full importedSource in addition to the existing
+sourceAnalysis, topicIds and learner.text. importedSource is optional only for
+legacy Block 1 fixture compatibility. New one-per-source-statement comparisons
+include referenceRelationshipId, validated against their sole sourceStatements
+reference; the optional alias preserves old grouped examples. Error envelopes
+also support TRANSCRIPTION_FAILED. Existing graph/evidence range conventions,
+status values and separation of knowledge from grading are unchanged. See
+[source-explanations.md](source-explanations.md) for limits and validation details.

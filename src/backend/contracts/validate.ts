@@ -2,7 +2,7 @@ import type {
   Document, EvaluationResult, ExplainBackDemo, ImportedSource, KnowledgeGraph, SourceAnalysis,
   StatementRef,
 } from "./domain";
-import type { AnalyzeSourceRequest, AnalyzeSourceResponse, EvaluateTextRequest, EvaluateTextResponse } from "./api";
+import type { AnalyzeImportedSourceRequest, AnalyzeSourceRequest, AnalyzeSourceResponse, EvaluateTextRequest, EvaluateTextResponse } from "./api";
 
 export interface ValidationIssue {
   path: string;
@@ -55,26 +55,26 @@ const graphRule = object({
 });
 const version = string(["1.0"]);
 const provenance = string(["synthetic_demo", "analysis"]);
+const sourceWarningRule = object({ code: string(["EMPTY_PDF_PAGE", "DOCX_EXTRACTION_WARNING"]), message: string(), page: optional(page) });
 const analysisRule = object({
   schemaVersion: version, id, provenance, document: documentRule, graph: graphRule,
   lessonSections: array(object({
     id, topicId: id, summary: string(), statementIds: array(id, 1),
     keyPoints: array(object({ id, text: string(), statementIds: array(id, 1) }), 1),
   }), 1),
+  sourceWarnings: optional(array(sourceWarningRule)),
+  analysisWarnings: optional(array(object({ code: string(["AMBIGUOUS_EVIDENCE", "QUESTIONS_PRESENT"]), message: string(), blockId: id }))),
 });
 const refRule = object({ graphId: id, statementId: id });
 const evaluationRule = object({
   schemaVersion: version, id, provenance, sourceAnalysisId: id, topicIds: array(id, 1),
   learnerDocument: documentRule, learnerGraph: graphRule,
   comparisons: array(object({
-    id, topicId: id, sourceStatements: array(refRule, 1), learnerStatements: array(refRule),
+    id, referenceRelationshipId: optional(id), topicId: id, sourceStatements: array(refRule, 1), learnerStatements: array(refRule),
     status: string(["correct", "partial", "contradicted", "missing", "uncertain"]),
     explanation: string(), suggestions: array(string()),
   })),
   additionalIdeas: array(object({ id, topicId: id, learnerStatements: array(refRule, 1), explanation: string() })),
-});
-const evaluateRequestRule = object({
-  schemaVersion: version, sourceAnalysis: analysisRule, topicIds: array(id, 1), learner: object({ text: string() }),
 });
 const demoRule = object({
   description: string(), sourceAnalysis: analysisRule, learnerText: string(), evaluation: evaluationRule,
@@ -89,10 +89,14 @@ const importedSourceRule = object({
     normalizedCharacterCount: { type: "integer", min: 1 },
     fileSizeBytes: optional({ type: "integer", min: 1 }), pageCount: optional(page),
   }),
-  warnings: array(object({ code: string(["EMPTY_PDF_PAGE", "DOCX_EXTRACTION_WARNING"]), message: string(), page: optional(page) })),
+  warnings: array(sourceWarningRule),
+});
+const evaluateRequestRule = object({
+  schemaVersion: version, importedSource: optional(importedSourceRule), sourceAnalysis: analysisRule,
+  topicIds: array(id, 1), learner: object({ text: string() }),
 });
 const errorRule = object({
-  code: string(["INVALID_REQUEST", "UNSUPPORTED_SOURCE", "PAYLOAD_TOO_LARGE", "UNREADABLE_DOCUMENT", "OCR_UNSUPPORTED", "PASSWORD_REQUIRED", "SOURCE_IMPORT_FAILED", "INVALID_SOURCE_ANALYSIS", "ANALYSIS_FAILED", "EVALUATION_FAILED", "UPSTREAM_UNAVAILABLE"]),
+  code: string(["INVALID_REQUEST", "UNSUPPORTED_SOURCE", "PAYLOAD_TOO_LARGE", "UNREADABLE_DOCUMENT", "OCR_UNSUPPORTED", "PASSWORD_REQUIRED", "SOURCE_IMPORT_FAILED", "AI_NOT_CONFIGURED", "AI_TIMEOUT", "AI_RATE_LIMITED", "AI_OUTPUT_INVALID", "AI_OUTPUT_TRUNCATED", "NO_EXTRACTABLE_KNOWLEDGE", "INVALID_SOURCE_ANALYSIS", "ANALYSIS_FAILED", "EVALUATION_FAILED", "TRANSCRIPTION_FAILED", "UPSTREAM_UNAVAILABLE"]),
   message: string(), retryable: { type: "boolean" },
   details: optional(array(object({ path: string(), message: string() }))),
 });
@@ -105,6 +109,12 @@ function responseRule(input: unknown, data: Rule): Rule {
 
 function issue(issues: ValidationIssue[], path: string, code: ValidationIssue["code"], message: string) {
   issues.push({ path, code, message });
+}
+/** Domain payloads contain JSON primitives; object key order is not semantic. */
+function canonicalJson(value: unknown): string {
+  if (Array.isArray(value)) return `[${value.map(canonicalJson).join(",")}]`;
+  if (value && typeof value === "object") return `{${Object.entries(value).sort(([a], [b]) => a.localeCompare(b)).map(([k, v]) => `${JSON.stringify(k)}:${canonicalJson(v)}`).join(",")}}`;
+  return JSON.stringify(value);
 }
 
 function shape(value: unknown, rule: Rule, path: string, issues: ValidationIssue[]): void {
@@ -234,6 +244,11 @@ function checkSource(source: SourceAnalysis, path: string, issues: ValidationIss
   if (source.graph.kind !== "source") issue(issues, `${path}.graph.kind`, "invariant", "Expected source graph.");
   if (!source.graph.statements.length) issue(issues, `${path}.graph.statements`, "invariant", "Source analysis needs at least one statement.");
   const topics = new Set(source.graph.topics.map(t => t.id));
+  source.analysisWarnings?.forEach((warning, i) => exists(warning.blockId, new Set(source.document.blocks.map(b => b.id)), `${path}.analysisWarnings[${i}].blockId`, issues));
+  source.sourceWarnings?.forEach((warning, i) => {
+    if (warning.code === "EMPTY_PDF_PAGE" && (source.document.kind !== "pdf" || warning.page === undefined)) issue(issues, `${path}.sourceWarnings[${i}]`, "invariant", "Empty PDF page warnings require a PDF and a page.");
+    if (warning.code === "DOCX_EXTRACTION_WARNING" && (source.document.kind !== "docx" || warning.page !== undefined)) issue(issues, `${path}.sourceWarnings[${i}]`, "invariant", "DOCX warnings have no page.");
+  });
   const statements = new Map(source.graph.statements.map(s => [s.id, s]));
   unique(source.lessonSections.map(s => s.id), `${path}.lessonSections`, issues);
   unique(source.lessonSections.map(s => s.topicId), `${path}.lessonSections`, issues, "topicId");
@@ -301,6 +316,9 @@ function checkEvaluation(source: SourceAnalysis, evaluation: EvaluationResult, p
   evaluation.comparisons.forEach((comparison, i) => {
     const p = `${path}.comparisons[${i}]`;
     exists(comparison.topicId, selected, `${p}.topicId`, issues);
+    if (comparison.referenceRelationshipId !== undefined && (comparison.sourceStatements.length !== 1 || comparison.sourceStatements[0].statementId !== comparison.referenceRelationshipId)) {
+      issue(issues, `${p}.referenceRelationshipId`, "reference", "Relationship ID must match the single source statement reference.");
+    }
     checkRefs(comparison.sourceStatements, source.graph, comparison.topicId, `${p}.sourceStatements`);
     checkRefs(comparison.learnerStatements, learner, comparison.topicId, `${p}.learnerStatements`);
     if (comparison.status === "missing" && comparison.learnerStatements.length) {
@@ -406,6 +424,39 @@ export function validateImportedSource(input: unknown): ValidationResult<Importe
   return result(input, issues);
 }
 
+export function validateAnalyzeImportedSourceRequest(input: unknown): ValidationResult<AnalyzeImportedSourceRequest> {
+  const issues: ValidationIssue[] = [];
+  shape(input, object({ schemaVersion: version, importedSource: importedSourceRule, outputLanguage: optional(string(["source", "en", "vi"])) }), "$", issues);
+  if (!issues.length) {
+    const validation = validateImportedSource((input as AnalyzeImportedSourceRequest).importedSource);
+    if (!validation.valid) issues.push(...validation.issues.map(i => ({ ...i, path: `$.importedSource${i.path.slice(1)}` })));
+  }
+  return result(input, issues);
+}
+
+/** Bind an analysis to its exact ImportedSource; legacy raw-text APIs remain separate. */
+export function validateImportedAnalysisResponse(requestInput: unknown, input: unknown): ValidationResult<AnalyzeSourceResponse> {
+  const request = validateAnalyzeImportedSourceRequest(requestInput);
+  const issues: ValidationIssue[] = request.valid ? [] : [...request.issues];
+  shape(input, responseRule(input, analysisRule), "$", issues);
+  if (!issues.length && request.valid) {
+    const response = input as AnalyzeSourceResponse;
+    if (response.ok) {
+      checkSource(response.data, "$.data", issues);
+      // Domain objects contain only JSON primitives; compare keys independent of order.
+      const canonical = (v: unknown): string => {
+        if (Array.isArray(v)) return `[${v.map(canonical).join(",")}]`;
+        if (v && typeof v === "object") return `{${Object.entries(v).sort(([a], [b]) => a.localeCompare(b)).map(([k, x]) => `${JSON.stringify(k)}:${canonical(x)}`).join(",")}}`;
+        return JSON.stringify(v);
+      };
+      if (canonical(response.data.document) !== canonical(request.value.importedSource.document)) issue(issues, "$.data.document", "invariant", "Imported document and blocks must remain unchanged.");
+      if (canonical(response.data.sourceWarnings) !== canonical(request.value.importedSource.warnings)) issue(issues, "$.data.sourceWarnings", "invariant", "Ingestion warnings must be retained unchanged.");
+      if (response.data.provenance !== "analysis") issue(issues, "$.data.provenance", "invariant", "Expected actual analysis provenance.");
+    }
+  }
+  return result(input, issues);
+}
+
 export function validateEvaluationResult(sourceInput: unknown, input: unknown): ValidationResult<EvaluationResult> {
   const source = validateSourceAnalysis(sourceInput);
   const issues: ValidationIssue[] = source.valid ? [] : source.issues.map(i => ({ ...i, path: `$.sourceAnalysis${i.path.slice(1)}` }));
@@ -429,6 +480,13 @@ export function validateEvaluateTextRequest(input: unknown): ValidationResult<Ev
   if (!issues.length) {
     const request = input as EvaluateTextRequest;
     checkSource(request.sourceAnalysis, "$.sourceAnalysis", issues);
+    if (request.importedSource) {
+      const imported = validateImportedSource(request.importedSource);
+      if (!imported.valid) issues.push(...imported.issues.map(i => ({ ...i, path: `$.importedSource${i.path.slice(1)}` })));
+      if (canonicalJson(request.importedSource.document) !== canonicalJson(request.sourceAnalysis.document)) {
+        issue(issues, "$.importedSource.document", "invariant", "Imported source and analysis document must match exactly.");
+      }
+    }
     unique(request.topicIds, "$.topicIds", issues);
     const topics = new Set(request.sourceAnalysis.graph.topics.map(t => t.id));
     request.topicIds.forEach((t, i) => exists(t, topics, `$.topicIds[${i}]`, issues));

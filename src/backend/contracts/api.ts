@@ -18,8 +18,18 @@ export type ImportTextRequest = AnalyzeTextRequest;
 /** Multipart POST /api/sources uses `file` and optional `title` parts. */
 export type ImportSourceResponse = ApiResponse<ImportedSource>;
 
+/** POST /api/analysis. Stateless: submit the full validated ingestion payload. */
+export interface AnalyzeImportedSourceRequest {
+  schemaVersion: SchemaVersion;
+  importedSource: ImportedSource;
+  /** Omitted means the source language; quotes always remain verbatim. */
+  outputLanguage?: "source" | "en" | "vi";
+}
+
 export interface EvaluateTextRequest {
   schemaVersion: SchemaVersion;
+  /** Required by the implemented endpoint; optional for legacy Block 1 examples. */
+  importedSource?: ImportedSource;
   /** Full source payload is mandatory: no server-side ID lookup/storage assumed. */
   sourceAnalysis: SourceAnalysis;
   topicIds: string[];
@@ -34,9 +44,16 @@ export type ApiErrorCode =
   | "OCR_UNSUPPORTED"
   | "PASSWORD_REQUIRED"
   | "SOURCE_IMPORT_FAILED"
+  | "AI_NOT_CONFIGURED"
+  | "AI_TIMEOUT"
+  | "AI_RATE_LIMITED"
+  | "AI_OUTPUT_INVALID"
+  | "AI_OUTPUT_TRUNCATED"
+  | "NO_EXTRACTABLE_KNOWLEDGE"
   | "INVALID_SOURCE_ANALYSIS"
   | "ANALYSIS_FAILED"
   | "EVALUATION_FAILED"
+  | "TRANSCRIPTION_FAILED"
   | "UPSTREAM_UNAVAILABLE";
 
 export interface ApiError {
@@ -53,3 +70,12 @@ export type ApiResponse<T> =
 
 export type AnalyzeSourceResponse = ApiResponse<SourceAnalysis>;
 export type EvaluateTextResponse = ApiResponse<EvaluationResult>;
+
+export interface TranscriptionResult {
+  transcript: string;
+  language: string;
+  warnings: string[];
+  audio: { mimeType: "audio/webm" | "audio/wav" | "audio/m4a"; bytes: number; durationSeconds?: number };
+}
+/** Multipart POST /api/transcriptions: exactly one audioFile part. */
+export type TranscriptionResponse = ApiResponse<TranscriptionResult>;

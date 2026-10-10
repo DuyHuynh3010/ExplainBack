@@ -1,6 +1,6 @@
 # ExplainBack
 
-An educational workspace with source input, microphone recording, provisional transcription/evaluation clients, and a separate source-ingestion backend. The results view uses a sample understanding map. Built with Next.js App Router, TypeScript, Tailwind CSS, and React Flow. All UI session state is local React state and resets on reload.
+An educational workspace that imports text/PDF/DOCX, analyzes sources through Gemini, and displays topic summaries and a reference knowledge graph. Built with Next.js App Router, TypeScript, Tailwind CSS, and React Flow. All UI session state is local React state and resets on reload. Voice transcription, editable explanations and evidence-based learner feedback are available through backend Gemini endpoints.
 
 ## Team documentation
 
@@ -17,21 +17,23 @@ npm run dev
 
 Open http://localhost:3000. For a production build, run `npm run build` and `npm start`.
 
-To connect the text evaluation flow to a backend hosted elsewhere, create `.env.local`:
+Configure the backend in your ignored `.env.local` before starting the server:
 
 ```sh
-NEXT_PUBLIC_API_BASE_URL=http://localhost:8000
+GEMINI_API_KEY=your-server-only-key
+GEMINI_MODEL=your-supported-structured-output-model
 ```
 
-The learning-source screen imports pasted text or a genuine PDF/DOCX through `POST /api/sources`. Files are limited to 3,000,000 bytes. Text uses JSON; files use multipart fields named `file` and optional `title`. The learner can still record audio, type explanation text, or upload an explanation file. Recording and evaluation keep their provisional clients until those backend endpoints are implemented.
+Select Continue after entering text or a genuine PDF/DOCX. The app calls `/api/sources`, then `/api/analysis`, and opens source topics, summaries, graph and evidence. Files are limited to 3,000,000 bytes; analysis supports 20,000 UTF-16 characters and 120 blocks. Both requests stay on this Next.js server. API keys and the Gemini SDK are backend-only. See [UI integration](docs/ui-source-analysis.md) for walkthrough, state behavior, tests and live-test results.
 
 ## Structure
 
 - `src/components/AppShell.tsx`: session state and view transitions.
 - `StepIndicator`, `SourceInput`: progress and editable source material.
-- `AudioRecorder`, `RecorderPreview`, `TranscriptEditor`: microphone recording, playback, transcription, editable/manual text, and document input.
-- `UnderstandingMap`, `EvaluationDetails`, `StatusBadge`: fixed-position graph, keyboard-accessible relationship list, evidence and status counts.
-- `src/fixtures/photosynthesis.ts`: deterministic source, transcript, six nodes and five relationships; summary derives from these relationships.
+- `AudioRecorder`, `RecorderPreview`, `TranscriptEditor`: microphone recording, playback, editable transcripts, manual text, and PDF/DOCX explanation ingestion.
+- `UnderstandingMap`, `ReferenceEdge`, `SourceEvidenceDetails`: topic graph, summaries, source evidence and a separate learner-feedback view.
+- `src/lib/{source-ingestion,source-analysis,use-source-analysis,reference-graph}`: API clients, session orchestration and frontend layout adapter.
+- `src/fixtures/photosynthesis.ts`: sample source text and legacy demo fixtures. The active graph never uses those fixtures as a fallback.
 - `src/types/lesson.ts`: shared step, status and relationship types.
 
 ## Checks
@@ -43,7 +45,7 @@ npx playwright install chromium
 npm test
 ```
 
-Playwright tests the full session at 390px and 1440px, empty-source validation, file inputs, preserved edits, recording/transcription with mocked services, microphone-denial fallback, evidence selection, fixture consistency, reset, horizontal overflow, browser errors, and unexpected external requests/microphone access.
+Playwright tests the session at 390px and 1440px, mock analysis, real PDF/DOCX ingestion with mock analysis, errors/retries, stale responses, reset, topic/evidence selection, neutral parallel edges, preserved explanation input, recording/playback and microphone denial. Live Gemini tests are opt-in and excluded from ordinary test execution. See the integration guide for the one-request live smoke command.
 
 ## Prototype limits and next integration points
 
@@ -51,14 +53,24 @@ A separate backend source-ingestion endpoint, `POST /api/sources`, accepts text,
 PDF, and DOCX without AI analysis. See [Source ingestion (Block 2)](docs/source-ingestion.md)
 for request/response examples, limits, PowerShell commands, and frontend integration guidance.
 
+`POST /api/analysis` now accepts a complete ImportedSource and produces topics,
+reference knowledge and lesson summaries through a backend Gemini adapter.
+Set `GEMINI_API_KEY` and `GEMINI_MODEL` on the server; no default model is selected.
+See [Source analysis (Block 3A)](docs/source-analysis.md) for configuration, limits,
+tests and frontend handoff. The UI now sends the full ImportedSource and displays
+the returned SourceAnalysis.
+
 The recorder requests microphone access only after the user selects Start recording.
-Transcription and evaluation require configured backend endpoints. The results view
-still displays fixed photosynthesis fixtures until response rendering is integrated.
+Source analysis is displayed before the learner explanation step. `/api/transcriptions`
+accepts `audioFile` and returns editable text; `/api/evaluations` reuses the complete
+ImportedSource/SourceAnalysis and returns validated feedback. See
+[Transcription and evaluation](docs/source-explanations.md) for contracts, limits,
+UI walkthrough, live verification and remaining accuracy limits.
 There is no authentication, durable storage, scoring, or cloud deployment.
 
 The learning-source input now calls `POST /api/sources`. It sends text with the
 JSON contract and sends PDF/DOCX files in the `file` multipart field with an
 optional `title`. The UI mirrors the backend's 3,000,000-byte source-file limit.
-The separate explanation-file input remains provisional until evaluation is implemented.
+The explanation-file input uses the same PDF/DOCX ingestion endpoint, then exposes editable learner text.
 
-The transcription and evaluation clients live in `src/lib/`. Their routes and payloads remain provisional until the backend team finalizes those contracts.
+The transcription and evaluation clients live in `src/lib/`; their implemented routes use the shared API envelope and server-only provider. Voice uses the configured audio-capable model, with an optional explicit server `GEMINI_TRANSCRIPTION_MODEL` override. No new dependency was added.

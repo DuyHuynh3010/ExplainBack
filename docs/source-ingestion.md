@@ -6,8 +6,10 @@
 text, and returns a validated `ImportedSource` using the backend domain contract.
 Title is optional metadata. The route uses Node.js, requires no AI API key, and
 does not persist documents. No topics, graphs, summaries, or evaluations are produced.
-The proposed Block 1 `/api/source/analyze` endpoint keeps its full-analysis meaning
-and has not been implemented or repurposed.
+The proposed Block 1 `/api/source/analyze` endpoint has not been implemented or
+repurposed. Block 3A now implements [POST /api/analysis](source-analysis.md), taking
+the complete ImportedSource as JSON and returning SourceAnalysis. Ingestion remains
+a separate operation and requires no AI configuration.
 
 Code, comments, fixtures, and documentation use English. Block 2 did not modify
 UI components, CSS, `src/types/lesson.ts`, or the recorder. The merged UI has
@@ -15,6 +17,11 @@ source/explanation file inputs and microphone recording. The later frontend
 integration now calls `POST /api/sources` and aligns the learning-source picker
 with PDF/DOCX and the 3,000,000-byte limit. Evaluation and transcription remain
 separate provisional clients.
+
+The current [UI integration](ui-source-analysis.md) also sends the full ImportedSource
+to /api/analysis and displays real topic graphs, summaries, evidence and warnings.
+It reuses this ingestion client and retains the imported payload for analysis retry.
+Transcription/evaluation actions are explicitly unavailable in this integration.
 
 ## Input and limits
 
