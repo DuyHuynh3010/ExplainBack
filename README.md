@@ -17,6 +17,14 @@ npm run dev
 
 Open http://localhost:3000. For a production build, run `npm run build` and `npm start`.
 
+To connect the text evaluation flow to a backend hosted elsewhere, create `.env.local`:
+
+```sh
+NEXT_PUBLIC_API_BASE_URL=http://localhost:8000
+```
+
+The frontend sends `POST /api/evaluations` with `lessonTitle`, `learningSource`, and `explanation`. If the variable is omitted, it calls the same-origin `/api/evaluations` route. The API adapter is isolated in `src/lib/evaluation.ts` so its provisional request shape can be updated when the backend contract is finalized.
+
 ## Structure
 
 - `src/components/AppShell.tsx`: session state and view transitions.
