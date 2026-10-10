@@ -393,3 +393,24 @@ PDF/DOCX up to 3,000,000 bytes or JSON text. These contracts require coordinatio
 before integration; the merge preserves both implementations without claiming
 that their formats, limits, or operations are interchangeable. Node.js 22+ is the
 current project requirement.
+
+## Block 3A implementation
+
+The canonical implemented analysis operation is now `POST /api/analysis`, taking
+`AnalyzeImportedSourceRequest` with a full ImportedSource and optional
+outputLanguage (`source`, `en`, `vi`). The legacy raw text/PDF analyze request types
+and proposed `/api/source/analyze` path above remain unimplemented compatibility
+examples. Do not use them as the input contract for the new endpoint.
+
+SourceAnalysis adds optional sourceWarnings (ingestion warnings copied unchanged)
+and analysisWarnings (AMBIGUOUS_EVIDENCE/QUESTIONS_PRESENT with blockId). Original
+segments and ingestion metadata stay in the separately retained ImportedSource.
+The schemaVersion stays 1.0; existing synthetic fixtures remain valid. Graph domain
+data still contains no positions or learner evaluation statuses.
+
+See [Source analysis](source-analysis.md) for the Gemini adapter, request/response,
+limits, bounded repair/retry policy, evidence positions, tests and frontend handoff.
+New error codes are AI_NOT_CONFIGURED, AI_TIMEOUT, AI_RATE_LIMITED,
+AI_OUTPUT_INVALID, AI_OUTPUT_TRUNCATED and NO_EXTRACTABLE_KNOWLEDGE.
+Transcription/evaluation remain unimplemented; later evaluation should reuse
+EvaluateTextRequest/EvaluationResult rather than the provisional UI multipart schema.

@@ -6,8 +6,10 @@
 text, and returns a validated `ImportedSource` using the backend domain contract.
 Title is optional metadata. The route uses Node.js, requires no AI API key, and
 does not persist documents. No topics, graphs, summaries, or evaluations are produced.
-The proposed Block 1 `/api/source/analyze` endpoint keeps its full-analysis meaning
-and has not been implemented or repurposed.
+The proposed Block 1 `/api/source/analyze` endpoint has not been implemented or
+repurposed. Block 3A now implements [POST /api/analysis](source-analysis.md), taking
+the complete ImportedSource as JSON and returning SourceAnalysis. Ingestion remains
+a separate operation and requires no AI configuration.
 
 Code, comments, fixtures, and documentation use English. Block 2 did not modify
 UI components, CSS, `src/types/lesson.ts`, or the recorder. The merged UI has

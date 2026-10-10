@@ -1,0 +1,6 @@
+{
+  "extends": "../sources/tsconfig.json",
+  "compilerOptions": { "outDir": "../../test-results/analysis-build" },
+  "include": ["../../src/backend/**/*.ts", "../../src/app/api/analysis/route.ts"],
+  "exclude": ["../../node_modules"]
+}

@@ -51,6 +51,12 @@ A separate backend source-ingestion endpoint, `POST /api/sources`, accepts text,
 PDF, and DOCX without AI analysis. See [Source ingestion (Block 2)](docs/source-ingestion.md)
 for request/response examples, limits, PowerShell commands, and frontend integration guidance.
 
+`POST /api/analysis` now accepts a complete ImportedSource and produces topics,
+reference knowledge and lesson summaries through a backend Gemini adapter.
+Set `GEMINI_API_KEY` and `GEMINI_MODEL` on the server; no default model is selected.
+See [Source analysis (Block 3A)](docs/source-analysis.md) for configuration, limits,
+tests and frontend handoff. The existing UI has not been wired to this endpoint.
+
 The recorder requests microphone access only after the user selects Start recording.
 Transcription and evaluation require configured backend endpoints. The results view
 still displays fixed photosynthesis fixtures until response rendering is integrated.

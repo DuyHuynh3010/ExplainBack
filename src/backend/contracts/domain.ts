@@ -131,6 +131,15 @@ export interface SourceAnalysis {
   document: Document;
   graph: KnowledgeGraph;
   lessonSections: LessonSection[];
+  /** Ingestion warnings retained verbatim; original segments remain in ImportedSource. */
+  sourceWarnings?: SourceWarning[];
+  analysisWarnings?: AnalysisWarning[];
+}
+
+export interface AnalysisWarning {
+  code: "AMBIGUOUS_EVIDENCE" | "QUESTIONS_PRESENT";
+  message: string;
+  blockId: string;
 }
 
 export interface StatementRef {
