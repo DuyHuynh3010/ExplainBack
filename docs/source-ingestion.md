@@ -9,10 +9,12 @@ does not persist documents. No topics, graphs, summaries, or evaluations are pro
 The proposed Block 1 `/api/source/analyze` endpoint keeps its full-analysis meaning
 and has not been implemented or repurposed.
 
-Code, comments, fixtures, and documentation use English. UI components, CSS,
-`src/types/lesson.ts`, and the recorder are unchanged. The source screen present
-in this branch is still the text-only prototype with disabled PDF upload, rather
-than an active UI v2 file-input integration.
+Code, comments, fixtures, and documentation use English. Block 2 did not modify
+UI components, CSS, `src/types/lesson.ts`, or the recorder. The merged UI has
+source/explanation file inputs and microphone recording, but its provisional
+evaluation/transcription clients do not call `POST /api/sources`. Its
+PDF/DOC/DOCX/GDOC and 10 MB file checks differ from this API's PDF/DOCX and
+3,000,000-byte limits. Coordinate these before wiring source ingestion.
 
 ## Input and limits
 

@@ -1,3 +1,5 @@
-export function TranscriptEditor({ transcript, onChange }: { transcript: string; onChange: (value: string) => void }) {
- return <div className="transcript-editor"><div className="transcript-heading"><label htmlFor="transcript">Your transcript</label><span className="small-label">EDITABLE SAMPLE</span></div><textarea id="transcript" rows={5} value={transcript} onChange={e => onChange(e.target.value)} /><p className="fine-print">A fixed sample transcript, not a transcription of your voice. You can edit it locally.</p></div>;
+import { DocumentUpload } from "./DocumentUpload";
+
+export function TranscriptEditor({ file, onChange, onError, disabled = false }: { file: File | null; onChange: (file: File | null) => void; onError: (message: string) => void; disabled?: boolean }) {
+ return <div className="transcript-editor"><DocumentUpload id="explanation-file" label="Upload your explanation" prompt="Choose an explanation file" file={file} onChange={onChange} onError={onError} disabled={disabled} /></div>;
 }
