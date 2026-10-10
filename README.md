@@ -1,6 +1,6 @@
 # ExplainBack
 
-A UI-only educational workspace: learning source → simulated explanation → sample understanding map. Built with Next.js App Router, TypeScript, Tailwind CSS, and React Flow. All session state is local React state and resets on reload.
+An educational workspace with a local UI demo and a source-ingestion backend. The demo flows from learning source → simulated explanation → sample understanding map. Built with Next.js App Router, TypeScript, Tailwind CSS, and React Flow. All UI session state is local React state and resets on reload.
 
 ## Team documentation
 
@@ -8,7 +8,7 @@ Read the [GitHub Workflow & Team Rules (PDF)](docs/github-workflow-and-team-rule
 
 ## Run locally
 
-Requires Node.js 20.9 or later.
+Requires Node.js 22 or later. Source ingestion uses `unpdf`, which requires Node.js 22+.
 
 ```sh
 npm install
@@ -39,6 +39,11 @@ Playwright tests the full session at 390px and 1440px, empty-source validation, 
 
 ## Prototype limits and next integration points
 
-The recorder does not access a microphone. The transcript and results are fixed photosynthesis fixtures regardless of what is entered. No data is uploaded, transcribed, or evaluated. There is no backend, authentication, storage, AI, scoring, PDF processing, or cloud deployment.
+The existing UI still uses local demo data. A separate backend source-ingestion
+endpoint, `POST /api/sources`, accepts text, PDF, and DOCX without AI analysis.
+See [Source ingestion (Block 2)](docs/source-ingestion.md) for request/response
+examples, limits, PowerShell commands, and frontend integration guidance.
+
+The recorder does not access a microphone. The transcript and results are fixed photosynthesis fixtures regardless of what is entered. The UI does not upload, transcribe, or evaluate input. The separate source-ingestion backend processes text/PDF/DOCX without authentication, storage, AI, scoring, or cloud deployment.
 
 TODO markers in `RecorderPreview.tsx` identify future recording, transcription, and evaluation integration points. Keep their eventual data contracts separate from the UI components. These integrations are intentionally unimplemented in this version.
