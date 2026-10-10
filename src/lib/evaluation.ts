@@ -2,7 +2,8 @@ export interface EvaluationRequest {
   lessonTitle: string;
   learningSource: string;
   learningSourceFile?: File | null;
-  explanationFile: File;
+  explanationText?: string;
+  explanationFile?: File | null;
 }
 
 export interface EvaluationAccepted {
@@ -22,7 +23,8 @@ export async function submitExplanation(
       formData.append("lessonTitle", payload.lessonTitle);
       formData.append("learningSource", payload.learningSource);
       if (payload.learningSourceFile) formData.append("learningSourceFile", payload.learningSourceFile);
-      formData.append("explanationFile", payload.explanationFile);
+      if (payload.explanationText?.trim()) formData.append("explanationText", payload.explanationText.trim());
+      else if (payload.explanationFile) formData.append("explanationFile", payload.explanationFile);
       return formData;
     })(),
     signal,
