@@ -1,6 +1,6 @@
 # ExplainBack
 
-A UI-only educational workspace: learning source → simulated explanation → sample understanding map. Built with Next.js App Router, TypeScript, Tailwind CSS, and React Flow. All session state is local React state and resets on reload.
+An educational workspace with source input, microphone recording, provisional transcription/evaluation clients, and a separate source-ingestion backend. The results view uses a sample understanding map. Built with Next.js App Router, TypeScript, Tailwind CSS, and React Flow. All UI session state is local React state and resets on reload.
 
 ## Team documentation
 
@@ -8,7 +8,7 @@ Read the [GitHub Workflow & Team Rules (PDF)](docs/github-workflow-and-team-rule
 
 ## Run locally
 
-Requires Node.js 20.9 or later.
+Requires Node.js 22 or later. Source ingestion uses `unpdf`, which requires Node.js 22+.
 
 ```sh
 npm install
@@ -43,10 +43,22 @@ npx playwright install chromium
 npm test
 ```
 
-Playwright tests the full session at 390px and 1440px, empty-source validation, preserved edits, timer progression, evidence selection, fixture consistency, reset, horizontal overflow, browser errors, and unexpected external requests/microphone access.
+Playwright tests the full session at 390px and 1440px, empty-source validation, file inputs, preserved edits, recording/transcription with mocked services, microphone-denial fallback, evidence selection, fixture consistency, reset, horizontal overflow, browser errors, and unexpected external requests/microphone access.
 
 ## Prototype limits and next integration points
 
-The recorder requests microphone access only after the user selects Start recording. Transcription and evaluation require configured backend endpoints. The results view still displays fixed photosynthesis fixtures until response rendering is integrated. There is no authentication, durable storage, scoring, or cloud deployment.
+A separate backend source-ingestion endpoint, `POST /api/sources`, accepts text,
+PDF, and DOCX without AI analysis. See [Source ingestion (Block 2)](docs/source-ingestion.md)
+for request/response examples, limits, PowerShell commands, and frontend integration guidance.
+
+The recorder requests microphone access only after the user selects Start recording.
+Transcription and evaluation require configured backend endpoints. The results view
+still displays fixed photosynthesis fixtures until response rendering is integrated.
+There is no authentication, durable storage, scoring, or cloud deployment.
+
+The UI's provisional file inputs accept PDF, DOC, DOCX, and GDOC up to 10 MB.
+The separate source-ingestion API accepts only PDF/DOCX files up to 3,000,000 bytes
+or JSON text. The UI does not call this endpoint yet; align formats, limits, and
+payloads before connecting these flows.
 
 The transcription and evaluation clients live in `src/lib/`. Their routes and payloads remain provisional until the backend team finalizes those contracts.

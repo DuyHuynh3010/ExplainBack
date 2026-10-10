@@ -308,10 +308,9 @@ Tests use Node's built-in `node:test` and native TypeScript stripping, verified 
 Node `24.13.1` in this environment without installing packages. The command does
 not start Next.js or require Playwright. `validate.mjs` does not match Playwright's
 default `*.spec.*`/`*.test.*` patterns, keeping the two runners separate.
-The README allows Node 20.9 for the app; that environment may not execute these
-TypeScript tests directly. An appropriate compiler/runner can be used once
-dependencies are available. The project's Node requirement and package scripts
-have not been changed.
+The project now requires Node.js 22+ for Block 2's unpdf dependency. Native
+TypeScript test execution was verified on Node 24.13.1; environments without
+TypeScript stripping need an appropriate compiler/runner. Package scripts are unchanged.
 
 Checks cover JSON round trips, all five statuses, reference/ID uniqueness, topic
 isolation, source/learner graph boundaries, lesson links, exact quotes/ranges,
@@ -356,3 +355,41 @@ scanned PDF/OCR support, output language, topic splitting/alias normalization,
 atomization, matching, polarity/conditions/formulas, and evidence requirements for
 status selection. The Block 1 validator neither defines those algorithms nor
 replaces semantic evaluation.
+
+## Block 2 compatibility extension
+
+Source ingestion is now implemented separately at `POST /api/sources`; the two
+analysis/evaluation operations above remain proposed and unimplemented.
+See [Source ingestion](source-ingestion.md) for the live API and frontend handoff.
+
+The backend contract retains schemaVersion `1.0` and adds `docx` to Document.kind,
+optional BlockLocation.paragraph, SourceBlock.original, and SourceBlock.normalizedRange.
+`ImportedSource` reuses Document/SourceBlock and carries original segments,
+normalized text, extraction metadata, and warnings. It is not a SourceAnalysis
+and contains no topics, knowledge graph, summary, or evaluation.
+
+The error envelope adds OCR_UNSUPPORTED, PASSWORD_REQUIRED, and SOURCE_IMPORT_FAILED.
+The existing Block 1 fixture and its 64 tests remain valid without modification.
+SourceAnalysis evidence ranges are still block-local. In ImportedSource, original
+ranges point into originalSegments[].text and normalized ranges point into
+normalizedText. These coordinate systems are distinct and explicitly named.
+
+ImportedSource.normalizedText normalizes the original segments and joins them with
+two newlines. Unlike the earlier analysis text convention, it is not formed by
+joining every split block: splitting a long paragraph must not insert new content.
+The future AI block should reuse the imported document/block IDs and consume this
+complete payload, with an explicit analysis request contract agreed at that stage.
+
+## UI integration after merging main
+
+The UI review and mapping above describe the Block 1 prototype. The current UI
+now accepts learning-source files, records microphone audio, and has provisional
+clients for POST /api/transcriptions and POST /api/evaluations. Neither endpoint
+is implemented by Block 2, and those clients do not use ImportedSource or the
+proposed stateless analysis/evaluation payloads. Results still use demo fixtures.
+
+The UI allows PDF/DOC/DOCX/GDOC files up to 10 MB, while POST /api/sources accepts
+PDF/DOCX up to 3,000,000 bytes or JSON text. These contracts require coordination
+before integration; the merge preserves both implementations without claiming
+that their formats, limits, or operations are interchangeable. Node.js 22+ is the
+current project requirement.

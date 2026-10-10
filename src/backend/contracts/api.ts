@@ -1,4 +1,4 @@
-import type { EvaluationResult, SchemaVersion, SourceAnalysis } from "./domain";
+import type { EvaluationResult, ImportedSource, SchemaVersion, SourceAnalysis } from "./domain";
 
 export interface AnalyzeTextRequest {
   schemaVersion: SchemaVersion;
@@ -13,6 +13,11 @@ export interface AnalyzePdfRequest {
 
 export type AnalyzeSourceRequest = AnalyzeTextRequest | AnalyzePdfRequest;
 
+/** POST /api/sources JSON body. Same text input shape, a different response/operation. */
+export type ImportTextRequest = AnalyzeTextRequest;
+/** Multipart POST /api/sources uses `file` and optional `title` parts. */
+export type ImportSourceResponse = ApiResponse<ImportedSource>;
+
 export interface EvaluateTextRequest {
   schemaVersion: SchemaVersion;
   /** Full source payload is mandatory: no server-side ID lookup/storage assumed. */
@@ -26,6 +31,9 @@ export type ApiErrorCode =
   | "UNSUPPORTED_SOURCE"
   | "PAYLOAD_TOO_LARGE"
   | "UNREADABLE_DOCUMENT"
+  | "OCR_UNSUPPORTED"
+  | "PASSWORD_REQUIRED"
+  | "SOURCE_IMPORT_FAILED"
   | "INVALID_SOURCE_ANALYSIS"
   | "ANALYSIS_FAILED"
   | "EVALUATION_FAILED"

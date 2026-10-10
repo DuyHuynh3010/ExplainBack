@@ -4,9 +4,11 @@ export type EvaluationStatus = "correct" | "partial" | "contradicted" | "missing
 export type Provenance = "synthetic_demo" | "analysis";
 
 export interface BlockLocation {
-  /** Physical PDF page, 1-based. Omitted for text; never invented. */
+  /** Physical PDF page, 1-based. Omitted for text/DOCX; never invented. */
   page?: number;
   section?: string;
+  /** 1-based extracted paragraph order within a page or the text/DOCX document. */
+  paragraph?: number;
 }
 
 export interface SourceBlock {
@@ -14,14 +16,48 @@ export interface SourceBlock {
   documentId: string;
   text: string;
   location?: BlockLocation;
+  /** Optional ingestion provenance: UTF-16 range in an ImportedSource original segment. */
+  original?: { segmentId: string; charRange: { start: number; end: number } };
+  /** Optional UTF-16 range in ImportedSource.normalizedText. */
+  normalizedRange?: { start: number; end: number };
 }
 
 export interface Document {
   id: string;
-  kind: "pdf" | "text";
+  kind: "pdf" | "text" | "docx";
   title?: string;
   /** Ordered extracted blocks. Original PDF bytes are outside the domain payload. */
   blocks: SourceBlock[];
+}
+
+/** Input/extraction text before normalization. PDF retains a segment for every page. */
+export interface OriginalSourceSegment {
+  id: string;
+  text: string;
+  page?: number;
+}
+
+export interface SourceWarning {
+  code: "EMPTY_PDF_PAGE" | "DOCX_EXTRACTION_WARNING";
+  message: string;
+  page?: number;
+}
+
+/** Source ingestion only. No AI analysis, topics, knowledge graph, or lesson summary. */
+export interface ImportedSource {
+  schemaVersion: SchemaVersion;
+  document: Document;
+  originalSegments: OriginalSourceSegment[];
+  /** Normalized original segments joined with two newlines; splitting does not add text. */
+  normalizedText: string;
+  metadata: {
+    extractor: "text" | "unpdf" | "mammoth";
+    originalCharacterCount: number;
+    normalizedCharacterCount: number;
+    fileSizeBytes?: number;
+    pageCount?: number;
+  };
+  warnings: SourceWarning[];
 }
 
 export interface Topic {

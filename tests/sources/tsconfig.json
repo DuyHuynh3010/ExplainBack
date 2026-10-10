@@ -1,0 +1,15 @@
+{
+  "extends": "../../tsconfig.json",
+  "compilerOptions": {
+    "noEmit": false,
+    "incremental": false,
+    "module": "commonjs",
+    "moduleResolution": "node",
+    "target": "ES2022",
+    "rootDir": "../../src",
+    "outDir": "../../test-results/sources-build",
+    "plugins": []
+  },
+  "include": ["../../src/backend/**/*.ts", "../../src/app/api/sources/route.ts"],
+  "exclude": ["../../node_modules"]
+}

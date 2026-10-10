@@ -1,5 +1,5 @@
 import type {
-  Document, EvaluationResult, ExplainBackDemo, KnowledgeGraph, SourceAnalysis,
+  Document, EvaluationResult, ExplainBackDemo, ImportedSource, KnowledgeGraph, SourceAnalysis,
   StatementRef,
 } from "./domain";
 import type { AnalyzeSourceRequest, AnalyzeSourceResponse, EvaluateTextRequest, EvaluateTextResponse } from "./api";
@@ -15,7 +15,7 @@ export type ValidationResult<T> =
 
 // Small dependency-free runtime schema. Unknown fields are rejected to catch drift.
 type Rule = { optional?: boolean } & (
-  | { type: "string"; values?: string[]; id?: boolean }
+  | { type: "string"; values?: string[]; id?: boolean; allowEmpty?: boolean }
   | { type: "boolean" }
   | { type: "integer"; min: number }
   | { type: "array"; item: Rule; min: number }
@@ -29,10 +29,12 @@ const object = (fields: Record<string, Rule>): Rule => ({ type: "object", fields
 const page: Rule = { type: "integer", min: 1 };
 const range = object({ start: { type: "integer", min: 0 }, end: { type: "integer", min: 1 } });
 const documentRule = object({
-  id, kind: string(["pdf", "text"]), title: optional(string()),
+  id, kind: string(["pdf", "text", "docx"]), title: optional(string()),
   blocks: array(object({
     id, documentId: id, text: string(),
-    location: optional(object({ page: optional(page), section: optional(string()) })),
+    location: optional(object({ page: optional(page), section: optional(string()), paragraph: optional(page) })),
+    original: optional(object({ segmentId: id, charRange: range })),
+    normalizedRange: optional(range),
   }), 1),
 });
 const graphRule = object({
@@ -77,8 +79,20 @@ const evaluateRequestRule = object({
 const demoRule = object({
   description: string(), sourceAnalysis: analysisRule, learnerText: string(), evaluation: evaluationRule,
 });
+const importedSourceRule = object({
+  schemaVersion: version, document: documentRule,
+  originalSegments: array(object({ id, text: { type: "string", allowEmpty: true }, page: optional(page) }), 1),
+  normalizedText: string(),
+  metadata: object({
+    extractor: string(["text", "unpdf", "mammoth"]),
+    originalCharacterCount: { type: "integer", min: 1 },
+    normalizedCharacterCount: { type: "integer", min: 1 },
+    fileSizeBytes: optional({ type: "integer", min: 1 }), pageCount: optional(page),
+  }),
+  warnings: array(object({ code: string(["EMPTY_PDF_PAGE", "DOCX_EXTRACTION_WARNING"]), message: string(), page: optional(page) })),
+});
 const errorRule = object({
-  code: string(["INVALID_REQUEST", "UNSUPPORTED_SOURCE", "PAYLOAD_TOO_LARGE", "UNREADABLE_DOCUMENT", "INVALID_SOURCE_ANALYSIS", "ANALYSIS_FAILED", "EVALUATION_FAILED", "UPSTREAM_UNAVAILABLE"]),
+  code: string(["INVALID_REQUEST", "UNSUPPORTED_SOURCE", "PAYLOAD_TOO_LARGE", "UNREADABLE_DOCUMENT", "OCR_UNSUPPORTED", "PASSWORD_REQUIRED", "SOURCE_IMPORT_FAILED", "INVALID_SOURCE_ANALYSIS", "ANALYSIS_FAILED", "EVALUATION_FAILED", "UPSTREAM_UNAVAILABLE"]),
   message: string(), retryable: { type: "boolean" },
   details: optional(array(object({ path: string(), message: string() }))),
 });
@@ -97,7 +111,7 @@ function shape(value: unknown, rule: Rule, path: string, issues: ValidationIssue
   if (value === undefined && rule.optional) return;
   switch (rule.type) {
     case "string":
-      if (typeof value !== "string" || !value.trim()) {
+      if (typeof value !== "string" || (!rule.allowEmpty && !value.trim())) {
         issue(issues, path, "shape", "Expected a non-empty string.");
       } else if (rule.values && !rule.values.includes(value)) {
         issue(issues, path, "shape", `Expected one of: ${rule.values.join(", ")}.`);
@@ -148,14 +162,18 @@ function exists(idValue: string, ids: Set<string>, path: string, issues: Validat
   if (!ids.has(idValue)) issue(issues, path, "reference", `Unknown reference: ${idValue}.`);
 }
 
-function checkGraph(doc: Document, graph: KnowledgeGraph, documentPath: string, graphPath: string, issues: ValidationIssue[]) {
+function checkDocument(doc: Document, documentPath: string, issues: ValidationIssue[]) {
   unique(doc.blocks.map(b => b.id), `${documentPath}.blocks`, issues);
   doc.blocks.forEach((block, i) => {
     if (block.documentId !== doc.id) issue(issues, `${documentPath}.blocks[${i}].documentId`, "reference", "Wrong document.");
-    if (doc.kind === "text" && block.location?.page !== undefined) {
-      issue(issues, `${documentPath}.blocks[${i}].location.page`, "invariant", "Text must not have invented PDF pages.");
+    if (doc.kind !== "pdf" && block.location?.page !== undefined) {
+      issue(issues, `${documentPath}.blocks[${i}].location.page`, "invariant", "Text/DOCX must not have invented PDF pages.");
     }
   });
+}
+
+function checkGraph(doc: Document, graph: KnowledgeGraph, documentPath: string, graphPath: string, issues: ValidationIssue[]) {
+  checkDocument(doc, documentPath, issues);
   if (graph.documentId !== doc.id) issue(issues, `${graphPath}.documentId`, "reference", "Wrong document.");
   for (const key of ["topics", "concepts", "statements", "evidence"] as const) {
     unique(graph[key].map(entity => entity.id), `${graphPath}.${key}`, issues);
@@ -320,6 +338,71 @@ export function validateSourceAnalysis(input: unknown): ValidationResult<SourceA
   const issues: ValidationIssue[] = [];
   shape(input, analysisRule, "$", issues);
   if (!issues.length) checkSource(input as SourceAnalysis, "$", issues);
+  return result(input, issues);
+}
+
+/** Conservative normalization: newline encoding and boundary whitespace only. */
+export function normalizeSourceText(text: string): string {
+  return text.replace(/\r\n?/g, "\n").trim();
+}
+
+export function validateImportedSource(input: unknown): ValidationResult<ImportedSource> {
+  const issues: ValidationIssue[] = [];
+  shape(input, importedSourceRule, "$", issues);
+  if (issues.length) return result(input, issues);
+  const source = input as ImportedSource;
+  const doc = source.document;
+  checkDocument(doc, "$.document", issues);
+  unique(source.originalSegments.map(s => s.id), "$.originalSegments", issues);
+  const segments = new Map(source.originalSegments.map(s => [s.id, s]));
+  const segmentOrder = new Map(source.originalSegments.map((s, i) => [s.id, i]));
+  const consumed = new Map<string, number>();
+  let previousSegmentIndex = -1;
+  let previousNormalizedEnd = 0;
+  doc.blocks.forEach((block, i) => {
+    const p = `$.document.blocks[${i}]`;
+    if (!block.original) { issue(issues, `${p}.original`, "reference", "Imported blocks require original segment ranges."); return; }
+    const segment = segments.get(block.original.segmentId);
+    if (!segment) { issue(issues, `${p}.original.segmentId`, "reference", "Unknown original segment."); return; }
+    const span = block.original.charRange;
+    if (span.start >= span.end || span.end > segment.text.length) issue(issues, `${p}.original.charRange`, "evidence", "Invalid original segment range.");
+    if (normalizeSourceText(segment.text.slice(span.start, span.end)) !== block.text) issue(issues, `${p}.text`, "evidence", "Normalized block must match its original range exactly.");
+    if (block.location?.page !== segment.page) issue(issues, `${p}.location.page`, "evidence", "Block page must match its original segment.");
+    if (block.location?.paragraph === undefined) issue(issues, `${p}.location.paragraph`, "reference", "Imported blocks require paragraph positions.");
+    const index = segmentOrder.get(segment.id)!;
+    const lastEnd = consumed.get(segment.id) ?? 0;
+    if (index < previousSegmentIndex || span.start < lastEnd) issue(issues, `${p}.original`, "invariant", "Original ranges must be ordered and non-overlapping.");
+    if (/\S/.test(segment.text.slice(lastEnd, span.start))) issue(issues, `${p}.original`, "invariant", "Non-whitespace source content was omitted.");
+    previousSegmentIndex = index;
+    consumed.set(segment.id, span.end);
+    const normalized = block.normalizedRange;
+    if (!normalized) issue(issues, `${p}.normalizedRange`, "reference", "Imported blocks require normalized text ranges.");
+    else {
+      if (normalized.start < previousNormalizedEnd || normalized.start >= normalized.end || normalized.end > source.normalizedText.length) issue(issues, `${p}.normalizedRange`, "evidence", "Normalized ranges must be ordered, non-overlapping, and in bounds.");
+      if (source.normalizedText.slice(normalized.start, normalized.end) !== block.text) issue(issues, `${p}.normalizedRange`, "evidence", "Normalized range must match block text.");
+      if (/\S/.test(source.normalizedText.slice(previousNormalizedEnd, normalized.start))) issue(issues, `${p}.normalizedRange`, "invariant", "Normalized content was omitted.");
+      previousNormalizedEnd = normalized.end;
+    }
+  });
+  source.originalSegments.forEach((segment, i) => {
+    if (/\S/.test(segment.text.slice(consumed.get(segment.id) ?? 0))) issue(issues, `$.originalSegments[${i}]`, "invariant", "Non-whitespace source content was omitted.");
+    if (doc.kind === "pdf") {
+      if (segment.page !== i + 1) issue(issues, `$.originalSegments[${i}].page`, "invariant", "PDF segments must preserve every page in order.");
+      const warnings = source.warnings.filter(w => w.code === "EMPTY_PDF_PAGE" && w.page === segment.page);
+      if (normalizeSourceText(segment.text) ? warnings.length !== 0 : warnings.length !== 1) issue(issues, "$.warnings", "invariant", "Exactly one warning is required for each empty PDF page.");
+    } else if (segment.page !== undefined) issue(issues, `$.originalSegments[${i}].page`, "invariant", "Text/DOCX have no stable page numbers.");
+  });
+  if (source.normalizedText !== source.originalSegments.map(s => normalizeSourceText(s.text)).join("\n\n")) issue(issues, "$.normalizedText", "invariant", "Normalized text must equal normalized original segments joined by two newlines.");
+  if (/\S/.test(source.normalizedText.slice(previousNormalizedEnd))) issue(issues, "$.normalizedText", "invariant", "Normalized content was omitted.");
+  if (source.metadata.normalizedCharacterCount !== source.normalizedText.length) issue(issues, "$.metadata.normalizedCharacterCount", "invariant", "Incorrect normalized character count.");
+  if (source.metadata.originalCharacterCount !== source.originalSegments.map(s => s.text).join("\n\n").length) issue(issues, "$.metadata.originalCharacterCount", "invariant", "Incorrect original character count.");
+  if (source.metadata.extractor !== ({ text: "text", pdf: "unpdf", docx: "mammoth" } as const)[doc.kind]) issue(issues, "$.metadata.extractor", "invariant", "Extractor must match source kind.");
+  if (doc.kind === "pdf" ? source.metadata.pageCount !== source.originalSegments.length : source.metadata.pageCount !== undefined) issue(issues, "$.metadata.pageCount", "invariant", "Only PDFs have page counts, matching all original segments.");
+  if (doc.kind === "text" ? source.metadata.fileSizeBytes !== undefined : source.metadata.fileSizeBytes === undefined) issue(issues, "$.metadata.fileSizeBytes", "invariant", "Only uploaded files require file sizes.");
+  source.warnings.forEach((warning, i) => {
+    if (warning.code === "EMPTY_PDF_PAGE" && (doc.kind !== "pdf" || !source.originalSegments.some(s => s.page === warning.page && !normalizeSourceText(s.text)))) issue(issues, `$.warnings[${i}]`, "reference", "Empty page warning must identify an actual empty PDF page.");
+    if (warning.code === "DOCX_EXTRACTION_WARNING" && (doc.kind !== "docx" || warning.page !== undefined)) issue(issues, `$.warnings[${i}]`, "invariant", "DOCX warnings have no page number.");
+  });
   return result(input, issues);
 }
 
