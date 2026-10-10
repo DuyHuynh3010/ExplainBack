@@ -2,6 +2,10 @@
 
 A UI-only educational workspace: learning source → simulated explanation → sample understanding map. Built with Next.js App Router, TypeScript, Tailwind CSS, and React Flow. All session state is local React state and resets on reload.
 
+## Team documentation
+
+Read the [GitHub Workflow & Team Rules (PDF)](docs/github-workflow-and-team-rules.pdf) for the project's collaboration workflow and team rules. The original PDF is included in the repository and is available after cloning.
+
 ## Run locally
 
 Requires Node.js 20.9 or later.
