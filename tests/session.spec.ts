@@ -1,5 +1,7 @@
 import { test, expect } from "@playwright/test";
-import { sampleSource, sampleTranscript, relationships, statuses } from "../src/fixtures/photosynthesis";
+import { sampleSource, sampleTitle, sampleTranscript, relationships, statuses } from "../src/fixtures/photosynthesis";
+
+const importedSourceResponse = { ok: true, schemaVersion: "1.0", data: { document: { id: "source-1", kind: "text", blocks: [] }, originalSegments: [], normalizedText: "Imported source", metadata: { extractor: "text", originalCharacterCount: 15, normalizedCharacterCount: 15 }, warnings: [] } };
 
 test("fixture evidence and summary are consistent", () => {
  expect(relationships).toHaveLength(5);
@@ -17,6 +19,13 @@ test("complete local session, preserved editing, selectable evidence and reset",
  let evaluationAttempts = 0;
  let submittedBody = "";
  let submittedContentType = "";
+ let sourceBody = "";
+ let sourceContentType = "";
+ await page.route("**/api/sources", async route => {
+  sourceBody = route.request().postDataBuffer()?.toString("utf8") ?? "";
+  sourceContentType = route.request().headers()["content-type"] ?? "";
+  await route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify(importedSourceResponse) });
+ });
  await page.route("**/api/evaluations", async route => {
   evaluationAttempts += 1;
   submittedBody = route.request().postDataBuffer()?.toString("utf8") ?? "";
@@ -26,7 +35,7 @@ test("complete local session, preserved editing, selectable evidence and reset",
  });
  page.on("pageerror", e => errors.push(e.message));
  page.on("console", message => { if (message.type() === "error") errors.push(message.text()); });
- page.on("request", r => { if (!r.url().startsWith("http://127.0.0.1:3000") && !r.url().startsWith("data:")) externalRequests.push(r.url()); });
+ page.on("request", request => { const url = new URL(request.url()); if (url.hostname !== "127.0.0.1" && url.protocol !== "data:") externalRequests.push(request.url()); });
  await page.addInitScript(() => { Object.defineProperty(navigator, "mediaDevices", { value: { getUserMedia: () => { throw new Error("Unexpected microphone access"); } } }); });
  await page.goto("/");
  expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
@@ -41,6 +50,10 @@ test("complete local session, preserved editing, selectable evidence and reset",
  await page.getByLabel("Lesson title").fill("My biology notes");
  await page.getByRole("button", { name: "Continue", exact: true }).click();
  await expect(page.getByRole("heading", { name: "My biology notes" })).toBeVisible();
+ expect(sourceContentType).toContain("multipart/form-data; boundary=");
+ expect(sourceBody).toContain('name="file"; filename="lesson.pdf"');
+ expect(sourceBody).toContain('name="title"');
+ expect(sourceBody).toContain("My biology notes");
  await page.getByRole("button", { name: "Back", exact: true }).click();
  await expect(page.getByText("lesson.pdf", { exact: true })).toBeVisible();
  await expect(page.getByLabel("Paste your learning material")).toHaveValue("");
@@ -103,6 +116,8 @@ test("complete local session, preserved editing, selectable evidence and reset",
  await expect(page.getByLabel("Paste your learning material")).toHaveValue("");
  await page.getByRole("button", { name: "Load sample lesson" }).click();
  await page.getByRole("button", { name: "Continue", exact: true }).click();
+ expect(sourceContentType).toContain("application/json");
+ expect(JSON.parse(sourceBody)).toEqual({ schemaVersion: "1.0", source: { kind: "text", title: sampleTitle, text: sampleSource } });
  await expect(page.getByText("explanation.pdf", { exact: true })).toHaveCount(0);
  await expect(page.getByRole("button", { name: "Evaluate", exact: true })).toBeDisabled();
  expect(errors).toEqual([]);
@@ -110,6 +125,7 @@ test("complete local session, preserved editing, selectable evidence and reset",
 });
 
 test("record audio, create an editable transcript, and evaluate as text", async ({ page }) => {
+ await page.route("**/api/sources", route => route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify(importedSourceResponse) }));
  await page.addInitScript(() => {
   const fakeTrack = { stop() {} };
   Object.defineProperty(navigator, "mediaDevices", { configurable: true, value: { getUserMedia: async () => ({ getTracks: () => [fakeTrack] }) } });
@@ -154,6 +170,7 @@ test("record audio, create an editable transcript, and evaluate as text", async 
 });
 
 test("show a manual text fallback when microphone permission is denied", async ({ page }) => {
+ await page.route("**/api/sources", route => route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify(importedSourceResponse) }));
  await page.addInitScript(() => {
   Object.defineProperty(navigator, "mediaDevices", { configurable: true, value: { getUserMedia: async () => { throw new DOMException("Denied", "NotAllowedError"); } } });
  });
