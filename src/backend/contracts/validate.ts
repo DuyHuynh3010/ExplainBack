@@ -1,0 +1,407 @@
+import type {
+  Document, EvaluationResult, ExplainBackDemo, KnowledgeGraph, SourceAnalysis,
+  StatementRef,
+} from "./domain";
+import type { AnalyzeSourceRequest, AnalyzeSourceResponse, EvaluateTextRequest, EvaluateTextResponse } from "./api";
+
+export interface ValidationIssue {
+  path: string;
+  code: "shape" | "reference" | "invariant" | "evidence";
+  message: string;
+}
+export type ValidationResult<T> =
+  | { valid: true; value: T; issues: [] }
+  | { valid: false; issues: ValidationIssue[] };
+
+// Small dependency-free runtime schema. Unknown fields are rejected to catch drift.
+type Rule = { optional?: boolean } & (
+  | { type: "string"; values?: string[]; id?: boolean }
+  | { type: "boolean" }
+  | { type: "integer"; min: number }
+  | { type: "array"; item: Rule; min: number }
+  | { type: "object"; fields: Record<string, Rule> }
+);
+const string = (values?: string[]): Rule => ({ type: "string", values });
+const id: Rule = { type: "string", id: true };
+const optional = (rule: Rule): Rule => ({ ...rule, optional: true });
+const array = (item: Rule, min = 0): Rule => ({ type: "array", item, min });
+const object = (fields: Record<string, Rule>): Rule => ({ type: "object", fields });
+const page: Rule = { type: "integer", min: 1 };
+const range = object({ start: { type: "integer", min: 0 }, end: { type: "integer", min: 1 } });
+const documentRule = object({
+  id, kind: string(["pdf", "text"]), title: optional(string()),
+  blocks: array(object({
+    id, documentId: id, text: string(),
+    location: optional(object({ page: optional(page), section: optional(string()) })),
+  }), 1),
+});
+const graphRule = object({
+  id, documentId: id, kind: string(["source", "learner"]),
+  topics: array(object({ id, title: string(), sourceTopicId: optional(id) }), 1),
+  concepts: array(object({ id, topicId: id, name: string(), aliases: array(string()), symbol: optional(string()) })),
+  statements: array(object({
+    id, topicId: id, subjectConceptId: id, relation: string(), objectConceptId: id,
+    assertion: string(), negated: { type: "boolean" }, conditions: array(string()),
+    formula: optional(string()), role: string(["definition", "fact", "mechanism", "formula", "example"]),
+    evidenceIds: array(id, 1),
+  })),
+  evidence: array(object({
+    id, documentId: id, blockId: id, quote: string(), kind: string(["source_quote", "learner_quote"]),
+    verification: string(["verified", "unverified"]),
+    location: optional(object({ page: optional(page), charRange: optional(range) })),
+  })),
+});
+const version = string(["1.0"]);
+const provenance = string(["synthetic_demo", "analysis"]);
+const analysisRule = object({
+  schemaVersion: version, id, provenance, document: documentRule, graph: graphRule,
+  lessonSections: array(object({
+    id, topicId: id, summary: string(), statementIds: array(id, 1),
+    keyPoints: array(object({ id, text: string(), statementIds: array(id, 1) }), 1),
+  }), 1),
+});
+const refRule = object({ graphId: id, statementId: id });
+const evaluationRule = object({
+  schemaVersion: version, id, provenance, sourceAnalysisId: id, topicIds: array(id, 1),
+  learnerDocument: documentRule, learnerGraph: graphRule,
+  comparisons: array(object({
+    id, topicId: id, sourceStatements: array(refRule, 1), learnerStatements: array(refRule),
+    status: string(["correct", "partial", "contradicted", "missing", "uncertain"]),
+    explanation: string(), suggestions: array(string()),
+  })),
+  additionalIdeas: array(object({ id, topicId: id, learnerStatements: array(refRule, 1), explanation: string() })),
+});
+const evaluateRequestRule = object({
+  schemaVersion: version, sourceAnalysis: analysisRule, topicIds: array(id, 1), learner: object({ text: string() }),
+});
+const demoRule = object({
+  description: string(), sourceAnalysis: analysisRule, learnerText: string(), evaluation: evaluationRule,
+});
+const errorRule = object({
+  code: string(["INVALID_REQUEST", "UNSUPPORTED_SOURCE", "PAYLOAD_TOO_LARGE", "UNREADABLE_DOCUMENT", "INVALID_SOURCE_ANALYSIS", "ANALYSIS_FAILED", "EVALUATION_FAILED", "UPSTREAM_UNAVAILABLE"]),
+  message: string(), retryable: { type: "boolean" },
+  details: optional(array(object({ path: string(), message: string() }))),
+});
+function responseRule(input: unknown, data: Rule): Rule {
+  const ok = (input as { ok?: unknown } | null)?.ok;
+  return object(ok === false
+    ? { ok: { type: "boolean" }, schemaVersion: version, error: errorRule }
+    : { ok: { type: "boolean" }, schemaVersion: version, data });
+}
+
+function issue(issues: ValidationIssue[], path: string, code: ValidationIssue["code"], message: string) {
+  issues.push({ path, code, message });
+}
+
+function shape(value: unknown, rule: Rule, path: string, issues: ValidationIssue[]): void {
+  if (value === undefined && rule.optional) return;
+  switch (rule.type) {
+    case "string":
+      if (typeof value !== "string" || !value.trim()) {
+        issue(issues, path, "shape", "Expected a non-empty string.");
+      } else if (rule.values && !rule.values.includes(value)) {
+        issue(issues, path, "shape", `Expected one of: ${rule.values.join(", ")}.`);
+      } else if (rule.id && !/^[A-Za-z0-9][A-Za-z0-9._:-]*$/.test(value)) {
+        issue(issues, path, "shape", "ID must use letters, digits, dot, underscore, colon or hyphen.");
+      }
+      break;
+    case "boolean":
+      if (typeof value !== "boolean") issue(issues, path, "shape", "Expected a boolean.");
+      break;
+    case "integer":
+      if (typeof value !== "number" || !Number.isSafeInteger(value) || value < rule.min) {
+        issue(issues, path, "shape", `Expected a safe integer >= ${rule.min}.`);
+      }
+      break;
+    case "array":
+      if (!Array.isArray(value)) { issue(issues, path, "shape", "Expected an array."); break; }
+      if (value.length < rule.min) issue(issues, path, "shape", `Expected at least ${rule.min} items.`);
+      value.forEach((item, index) => shape(item, rule.item, `${path}[${index}]`, issues));
+      break;
+    case "object": {
+      if (!value || typeof value !== "object" || Array.isArray(value)) {
+        issue(issues, path, "shape", "Expected an object."); break;
+      }
+      const record = value as Record<string, unknown>;
+      for (const key of Object.keys(record)) {
+        if (!Object.hasOwn(rule.fields, key)) issue(issues, `${path}.${key}`, "shape", "Unknown field.");
+      }
+      for (const [key, field] of Object.entries(rule.fields)) shape(record[key], field, `${path}.${key}`, issues);
+      break;
+    }
+  }
+}
+
+function result<T>(value: unknown, issues: ValidationIssue[]): ValidationResult<T> {
+  return issues.length ? { valid: false, issues } : { valid: true, value: value as T, issues: [] };
+}
+
+function unique(values: string[], path: string, issues: ValidationIssue[], field?: string) {
+  const seen = new Set<string>();
+  values.forEach((value, index) => {
+    if (seen.has(value)) issue(issues, `${path}[${index}]${field ? `.${field}` : ""}`, "invariant", `Duplicate ID/reference: ${value}.`);
+    seen.add(value);
+  });
+}
+
+function exists(idValue: string, ids: Set<string>, path: string, issues: ValidationIssue[]) {
+  if (!ids.has(idValue)) issue(issues, path, "reference", `Unknown reference: ${idValue}.`);
+}
+
+function checkGraph(doc: Document, graph: KnowledgeGraph, documentPath: string, graphPath: string, issues: ValidationIssue[]) {
+  unique(doc.blocks.map(b => b.id), `${documentPath}.blocks`, issues);
+  doc.blocks.forEach((block, i) => {
+    if (block.documentId !== doc.id) issue(issues, `${documentPath}.blocks[${i}].documentId`, "reference", "Wrong document.");
+    if (doc.kind === "text" && block.location?.page !== undefined) {
+      issue(issues, `${documentPath}.blocks[${i}].location.page`, "invariant", "Text must not have invented PDF pages.");
+    }
+  });
+  if (graph.documentId !== doc.id) issue(issues, `${graphPath}.documentId`, "reference", "Wrong document.");
+  for (const key of ["topics", "concepts", "statements", "evidence"] as const) {
+    unique(graph[key].map(entity => entity.id), `${graphPath}.${key}`, issues);
+  }
+  const topics = new Set(graph.topics.map(t => t.id));
+  const concepts = new Map(graph.concepts.map(c => [c.id, c]));
+  const evidenceIds = new Set(graph.evidence.map(e => e.id));
+  graph.topics.forEach((topic, i) => {
+    if (graph.kind === "source" && topic.sourceTopicId !== undefined) {
+      issue(issues, `${graphPath}.topics[${i}].sourceTopicId`, "invariant", "Source topics cannot map to another source topic.");
+    }
+    if (graph.kind === "learner" && topic.sourceTopicId === undefined) {
+      issue(issues, `${graphPath}.topics[${i}].sourceTopicId`, "reference", "Learner topic needs a source topic mapping.");
+    }
+  });
+  graph.concepts.forEach((concept, i) => {
+    exists(concept.topicId, topics, `${graphPath}.concepts[${i}].topicId`, issues);
+    unique(concept.aliases, `${graphPath}.concepts[${i}].aliases`, issues);
+  });
+  graph.statements.forEach((statement, i) => {
+    const p = `${graphPath}.statements[${i}]`;
+    exists(statement.topicId, topics, `${p}.topicId`, issues);
+    for (const key of ["subjectConceptId", "objectConceptId"] as const) {
+      const concept = concepts.get(statement[key]);
+      if (!concept) issue(issues, `${p}.${key}`, "reference", "Unknown concept.");
+      else if (concept.topicId !== statement.topicId) issue(issues, `${p}.${key}`, "invariant", "Edge crosses topic boundary.");
+    }
+    unique(statement.evidenceIds, `${p}.evidenceIds`, issues);
+    statement.evidenceIds.forEach((e, j) => exists(e, evidenceIds, `${p}.evidenceIds[${j}]`, issues));
+    if (statement.role === "formula" && !statement.formula) issue(issues, `${p}.formula`, "invariant", "Formula role requires a formula.");
+  });
+  graph.evidence.forEach((evidence, i) => {
+    const p = `${graphPath}.evidence[${i}]`;
+    if (evidence.documentId !== doc.id) issue(issues, `${p}.documentId`, "reference", "Wrong evidence document.");
+    const block = doc.blocks.find(b => b.id === evidence.blockId);
+    if (!block) issue(issues, `${p}.blockId`, "reference", "Unknown source block.");
+    const expectedKind = graph.kind === "source" ? "source_quote" : "learner_quote";
+    if (evidence.kind !== expectedKind) issue(issues, `${p}.kind`, "invariant", "Evidence kind must match graph kind.");
+    if (evidence.location?.page !== undefined &&
+      (doc.kind !== "pdf" || evidence.location.page !== block?.location?.page)) {
+      issue(issues, `${p}.location.page`, "evidence", "Page must match the PDF block location.");
+    }
+    const span = evidence.location?.charRange;
+    if (span && (span.start >= span.end || (block && span.end > block.text.length))) {
+      issue(issues, `${p}.location.charRange`, "evidence", "Invalid block-local range.");
+    }
+    if (block && evidence.verification === "verified") {
+      const actual = span ? block.text.slice(span.start, span.end) : undefined;
+      if (span ? actual !== evidence.quote : !block.text.includes(evidence.quote)) {
+        issue(issues, `${p}.quote`, "evidence", "Verified quote must match the supplied block/range exactly.");
+      }
+    }
+  });
+}
+
+function checkSource(source: SourceAnalysis, path: string, issues: ValidationIssue[]) {
+  checkGraph(source.document, source.graph, `${path}.document`, `${path}.graph`, issues);
+  if (source.graph.kind !== "source") issue(issues, `${path}.graph.kind`, "invariant", "Expected source graph.");
+  if (!source.graph.statements.length) issue(issues, `${path}.graph.statements`, "invariant", "Source analysis needs at least one statement.");
+  const topics = new Set(source.graph.topics.map(t => t.id));
+  const statements = new Map(source.graph.statements.map(s => [s.id, s]));
+  unique(source.lessonSections.map(s => s.id), `${path}.lessonSections`, issues);
+  unique(source.lessonSections.map(s => s.topicId), `${path}.lessonSections`, issues, "topicId");
+  source.lessonSections.forEach((section, i) => {
+    const p = `${path}.lessonSections[${i}]`;
+    exists(section.topicId, topics, `${p}.topicId`, issues);
+    unique(section.keyPoints.map(k => k.id), `${p}.keyPoints`, issues);
+    const checkLinks = (ids: string[], linkPath: string) => {
+      unique(ids, linkPath, issues);
+      ids.forEach((idValue, j) => {
+        const statement = statements.get(idValue);
+        if (!statement) issue(issues, `${linkPath}[${j}]`, "reference", "Unknown source statement.");
+        else if (statement.topicId !== section.topicId) issue(issues, `${linkPath}[${j}]`, "invariant", "Lesson link crosses topic boundary.");
+      });
+    };
+    checkLinks(section.statementIds, `${p}.statementIds`);
+    section.keyPoints.forEach((point, j) => checkLinks(point.statementIds, `${p}.keyPoints[${j}].statementIds`));
+  });
+  for (const topic of topics) {
+    if (!source.lessonSections.some(s => s.topicId === topic)) issue(issues, `${path}.lessonSections`, "invariant", `Missing section for topic: ${topic}.`);
+  }
+}
+
+function checkEvaluation(source: SourceAnalysis, evaluation: EvaluationResult, path: string, issues: ValidationIssue[]) {
+  const learner = evaluation.learnerGraph;
+  checkGraph(evaluation.learnerDocument, learner, `${path}.learnerDocument`, `${path}.learnerGraph`, issues);
+  if (learner.kind !== "learner" || evaluation.learnerDocument.kind !== "text") {
+    issue(issues, `${path}.learnerGraph`, "invariant", "Learner input must be a text document and learner graph.");
+  }
+  if (source.id !== evaluation.sourceAnalysisId) issue(issues, `${path}.sourceAnalysisId`, "reference", "Wrong source analysis.");
+  if (learner.id === source.graph.id || evaluation.learnerDocument.id === source.document.id) {
+    issue(issues, `${path}.learnerGraph`, "invariant", "Source and learner graph/document IDs must be distinct in this bundle.");
+  }
+  if (evaluation.provenance !== source.provenance) issue(issues, `${path}.provenance`, "invariant", "Do not mix synthetic and actual analysis.");
+  unique(evaluation.topicIds, `${path}.topicIds`, issues);
+  const sourceTopics = new Set(source.graph.topics.map(t => t.id));
+  const selected = new Set(evaluation.topicIds);
+  evaluation.topicIds.forEach((t, i) => exists(t, sourceTopics, `${path}.topicIds[${i}]`, issues));
+  const topicMap = new Map(learner.topics.map(t => [t.id, t.sourceTopicId]));
+  learner.topics.forEach((t, i) => {
+    if (t.sourceTopicId) exists(t.sourceTopicId, selected, `${path}.learnerGraph.topics[${i}].sourceTopicId`, issues);
+  });
+  unique(learner.topics.map(t => t.sourceTopicId ?? ""), `${path}.learnerGraph.topics`, issues, "sourceTopicId");
+  for (const topic of selected) {
+    if (!learner.topics.some(t => t.sourceTopicId === topic)) issue(issues, `${path}.learnerGraph.topics`, "reference", `Missing learner topic mapping: ${topic}.`);
+  }
+  unique(evaluation.comparisons.map(c => c.id), `${path}.comparisons`, issues);
+  unique(evaluation.additionalIdeas.map(a => a.id), `${path}.additionalIdeas`, issues);
+  const sourceUsage = new Set<string>();
+  const learnerUsage = new Set<string>();
+  const checkRefs = (refs: StatementRef[], graph: KnowledgeGraph, topic: string, refPath: string) => {
+    refs.forEach((ref, i) => {
+      const p = `${refPath}[${i}]`;
+      if (ref.graphId !== graph.id) issue(issues, `${p}.graphId`, "reference", "Reference targets the wrong graph.");
+      const statement = graph.statements.find(s => s.id === ref.statementId);
+      if (!statement) issue(issues, `${p}.statementId`, "reference", "Unknown statement.");
+      else if ((graph.kind === "source" ? statement.topicId : topicMap.get(statement.topicId)) !== topic) {
+        issue(issues, p, "invariant", "Statement does not belong to the comparison's source topic.");
+      }
+      const usage = graph.kind === "source" ? sourceUsage : learnerUsage;
+      if (usage.has(ref.statementId)) issue(issues, `${p}.statementId`, "invariant", "Statement is counted more than once.");
+      usage.add(ref.statementId);
+    });
+  };
+  evaluation.comparisons.forEach((comparison, i) => {
+    const p = `${path}.comparisons[${i}]`;
+    exists(comparison.topicId, selected, `${p}.topicId`, issues);
+    checkRefs(comparison.sourceStatements, source.graph, comparison.topicId, `${p}.sourceStatements`);
+    checkRefs(comparison.learnerStatements, learner, comparison.topicId, `${p}.learnerStatements`);
+    if (comparison.status === "missing" && comparison.learnerStatements.length) {
+      issue(issues, `${p}.learnerStatements`, "invariant", "Missing has no corresponding learner statement.");
+    } else if (!["missing", "uncertain"].includes(comparison.status) && !comparison.learnerStatements.length) {
+      issue(issues, `${p}.learnerStatements`, "invariant", "This status requires a learner statement.");
+    }
+    if (comparison.status !== "uncertain") {
+      const requireVerified = (refs: StatementRef[], graph: KnowledgeGraph, refPath: string) => {
+        refs.forEach((ref, j) => {
+          const statement = graph.statements.find(s => s.id === ref.statementId);
+          if (statement && !statement.evidenceIds.some(idValue => graph.evidence.some(e => e.id === idValue && e.verification === "verified"))) {
+            issue(issues, `${refPath}[${j}]`, "evidence", "A definite status requires at least one verified quote for each referenced statement; otherwise use uncertain.");
+          }
+        });
+      };
+      requireVerified(comparison.sourceStatements, source.graph, `${p}.sourceStatements`);
+      requireVerified(comparison.learnerStatements, learner, `${p}.learnerStatements`);
+    }
+  });
+  evaluation.additionalIdeas.forEach((idea, i) => {
+    const p = `${path}.additionalIdeas[${i}]`;
+    exists(idea.topicId, selected, `${p}.topicId`, issues);
+    checkRefs(idea.learnerStatements, learner, idea.topicId, `${p}.learnerStatements`);
+  });
+  source.graph.statements.filter(s => selected.has(s.topicId)).forEach(s => {
+    if (!sourceUsage.has(s.id)) issue(issues, `${path}.comparisons`, "invariant", `Unclassified source statement: ${s.id}.`);
+  });
+  learner.statements.forEach((s, i) => {
+    if (!learnerUsage.has(s.id)) issue(issues, `${path}.learnerGraph.statements[${i}]`, "invariant", `Unclassified learner statement: ${s.id}.`);
+  });
+}
+
+export function validateSourceAnalysis(input: unknown): ValidationResult<SourceAnalysis> {
+  const issues: ValidationIssue[] = [];
+  shape(input, analysisRule, "$", issues);
+  if (!issues.length) checkSource(input as SourceAnalysis, "$", issues);
+  return result(input, issues);
+}
+
+export function validateEvaluationResult(sourceInput: unknown, input: unknown): ValidationResult<EvaluationResult> {
+  const source = validateSourceAnalysis(sourceInput);
+  const issues: ValidationIssue[] = source.valid ? [] : source.issues.map(i => ({ ...i, path: `$.sourceAnalysis${i.path.slice(1)}` }));
+  shape(input, evaluationRule, "$", issues);
+  if (!issues.length && source.valid) checkEvaluation(source.value, input as EvaluationResult, "$", issues);
+  return result(input, issues);
+}
+
+export function validateAnalyzeSourceRequest(input: unknown): ValidationResult<AnalyzeSourceRequest> {
+  const kind = (input as { source?: { kind?: unknown } } | null)?.source?.kind;
+  const sourceFields: Record<string, Rule> = { kind: string(["text", "pdf"]), title: optional(string()) };
+  if (kind !== "pdf") sourceFields.text = string();
+  const issues: ValidationIssue[] = [];
+  shape(input, object({ schemaVersion: version, source: object(sourceFields) }), "$", issues);
+  return result(input, issues);
+}
+
+export function validateEvaluateTextRequest(input: unknown): ValidationResult<EvaluateTextRequest> {
+  const issues: ValidationIssue[] = [];
+  shape(input, evaluateRequestRule, "$", issues);
+  if (!issues.length) {
+    const request = input as EvaluateTextRequest;
+    checkSource(request.sourceAnalysis, "$.sourceAnalysis", issues);
+    unique(request.topicIds, "$.topicIds", issues);
+    const topics = new Set(request.sourceAnalysis.graph.topics.map(t => t.id));
+    request.topicIds.forEach((t, i) => exists(t, topics, `$.topicIds[${i}]`, issues));
+  }
+  return result(input, issues);
+}
+
+export function validateDemo(input: unknown): ValidationResult<ExplainBackDemo> {
+  const issues: ValidationIssue[] = [];
+  shape(input, demoRule, "$", issues);
+  if (!issues.length) {
+    const demo = input as ExplainBackDemo;
+    checkSource(demo.sourceAnalysis, "$.sourceAnalysis", issues);
+    checkEvaluation(demo.sourceAnalysis, demo.evaluation, "$.evaluation", issues);
+    if (demo.sourceAnalysis.provenance !== "synthetic_demo" || demo.evaluation.provenance !== "synthetic_demo") {
+      issue(issues, "$.sourceAnalysis.provenance", "invariant", "Demo must be marked synthetic_demo.");
+    }
+    if (demo.learnerText !== demo.evaluation.learnerDocument.blocks.map(b => b.text).join("\n\n")) {
+      issue(issues, "$.learnerText", "invariant", "Learner text must equal the ordered learner blocks joined with two newlines.");
+    }
+  }
+  return result(input, issues);
+}
+
+export function validateAnalyzeSourceResponse(requestInput: unknown, input: unknown): ValidationResult<AnalyzeSourceResponse> {
+  const request = validateAnalyzeSourceRequest(requestInput);
+  const issues: ValidationIssue[] = request.valid ? [] : request.issues.map(i => ({ ...i, path: `$.request${i.path.slice(1)}` }));
+  shape(input, responseRule(input, analysisRule), "$", issues);
+  if (!issues.length && request.valid) {
+    const response = input as AnalyzeSourceResponse;
+    if (response.ok) {
+      checkSource(response.data, "$.data", issues);
+      if (response.data.document.kind !== request.value.source.kind) issue(issues, "$.data.document.kind", "invariant", "Document kind differs from request.");
+      if (request.value.source.kind === "text" && response.data.document.blocks.map(b => b.text).join("\n\n") !== request.value.source.text) {
+        issue(issues, "$.data.document.blocks", "invariant", "Text source must be preserved exactly, joining blocks with two newlines.");
+      }
+    }
+  }
+  return result(input, issues);
+}
+
+export function validateEvaluateTextResponse(requestInput: unknown, input: unknown): ValidationResult<EvaluateTextResponse> {
+  const request = validateEvaluateTextRequest(requestInput);
+  const issues: ValidationIssue[] = request.valid ? [] : request.issues.map(i => ({ ...i, path: `$.request${i.path.slice(1)}` }));
+  shape(input, responseRule(input, evaluationRule), "$", issues);
+  if (!issues.length && request.valid) {
+    const response = input as EvaluateTextResponse;
+    if (response.ok) {
+      checkEvaluation(request.value.sourceAnalysis, response.data, "$.data", issues);
+      if (response.data.learnerDocument.blocks.map(b => b.text).join("\n\n") !== request.value.learner.text) {
+        issue(issues, "$.data.learnerDocument.blocks", "invariant", "Learner text differs from the evaluation request.");
+      }
+      if (JSON.stringify([...response.data.topicIds].sort()) !== JSON.stringify([...request.value.topicIds].sort())) {
+        issue(issues, "$.data.topicIds", "invariant", "Evaluated topics differ from the requested topics.");
+      }
+    }
+  }
+  return result(input, issues);
+}
