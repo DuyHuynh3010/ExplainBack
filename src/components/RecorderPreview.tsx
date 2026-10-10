@@ -4,9 +4,9 @@ import { AlertCircle, ArrowLeft, ArrowRight, CheckCircle2, LoaderCircle, Mic, Sq
 import { submitExplanation } from "@/lib/evaluation";
 import { TranscriptEditor } from "./TranscriptEditor";
 
-interface Props { title: string; source: string; explanationFile: File | null; onExplanationFile: (file: File | null) => void; onBack: () => void; onResults: () => void }
+interface Props { title: string; source: string; sourceFile: File | null; explanationFile: File | null; onExplanationFile: (file: File | null) => void; onBack: () => void; onResults: () => void }
 
-export function RecorderPreview({ title, source, explanationFile, onExplanationFile, onBack, onResults }: Props) {
+export function RecorderPreview({ title, source, sourceFile, explanationFile, onExplanationFile, onBack, onResults }: Props) {
  const [recording, setRecording] = useState(false);
  const [seconds, setSeconds] = useState(0);
  const [loading, setLoading] = useState(false);
@@ -24,7 +24,7 @@ export function RecorderPreview({ title, source, explanationFile, onExplanationF
   setLoading(true);
   requestController.current = new AbortController();
   try {
-   await submitExplanation({ lessonTitle: title.trim(), learningSource: source, explanationFile }, requestController.current.signal);
+   await submitExplanation({ lessonTitle: title.trim(), learningSource: source, learningSourceFile: sourceFile, explanationFile }, requestController.current.signal);
    setSuccess(true);
    onResults();
   } catch (requestError) {

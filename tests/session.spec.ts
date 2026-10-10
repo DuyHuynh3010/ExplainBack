@@ -34,12 +34,17 @@ test("complete local session, preserved editing, selectable evidence and reset",
  await expect(page.getByRole("button", { name: "Continue", exact: true })).toBeDisabled();
  await page.getByLabel("Paste your learning material").fill("   ");
  await expect(page.getByRole("button", { name: "Continue", exact: true })).toBeDisabled();
- await expect(page.getByRole("button", { name: "Upload PDF" })).toBeDisabled();
- await page.getByRole("button", { name: "Load sample lesson" }).click();
- await expect(page.getByLabel("Paste your learning material")).toHaveValue(sampleSource);
+ await page.getByLabel("Upload learning material").setInputFiles({ name: "lesson.pdf", mimeType: "application/pdf", buffer: Buffer.from("PDF learning source") });
+ await expect(page.getByText("lesson.pdf", { exact: true })).toBeVisible();
+ await expect(page.getByRole("button", { name: "Continue", exact: true })).toBeEnabled();
+ await page.screenshot({ path: `test-results/source-upload-${test.info().project.name}.png`, fullPage: true });
  await page.getByLabel("Lesson title").fill("My biology notes");
  await page.getByRole("button", { name: "Continue", exact: true }).click();
  await expect(page.getByRole("heading", { name: "My biology notes" })).toBeVisible();
+ await page.getByRole("button", { name: "Back", exact: true }).click();
+ await expect(page.getByText("lesson.pdf", { exact: true })).toBeVisible();
+ await expect(page.getByLabel("Paste your learning material")).toHaveValue("");
+ await page.getByRole("button", { name: "Continue", exact: true }).click();
  await expect(page.getByText("PDF, Word (.doc, .docx), or Google Docs (.gdoc)", { exact: true })).toBeVisible();
  await expect(page.getByRole("button", { name: "Evaluate", exact: true })).toBeDisabled();
  await page.getByLabel("Upload your explanation").setInputFiles({ name: "explanation.txt", mimeType: "text/plain", buffer: Buffer.from("Not accepted") });
@@ -65,12 +70,14 @@ test("complete local session, preserved editing, selectable evidence and reset",
  expect(submittedBody).toContain('name="lessonTitle"');
  expect(submittedBody).toContain("My biology notes");
  expect(submittedBody).toContain('name="learningSource"');
+ expect(submittedBody).toContain('name="learningSourceFile"; filename="lesson.pdf"');
+ expect(submittedBody).toContain("PDF learning source");
  expect(submittedBody).toContain('name="explanationFile"; filename="explanation.pdf"');
  expect(submittedBody).toContain("PDF explanation content");
  errors.length = 0; // The intentionally mocked 503 is surfaced and handled above.
  await page.getByRole("button", { name: "Back", exact: true }).click();
  await expect(page.getByLabel("Lesson title")).toHaveValue("My biology notes");
- await expect(page.getByLabel("Paste your learning material")).toHaveValue(sampleSource);
+ await expect(page.getByText("lesson.pdf", { exact: true })).toBeVisible();
  await page.getByRole("button", { name: "Continue", exact: true }).click();
  await expect(page.getByText("explanation.pdf", { exact: true })).toBeVisible();
  await page.getByRole("button", { name: "Evaluate", exact: true }).click();

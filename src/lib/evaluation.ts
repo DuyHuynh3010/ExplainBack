@@ -1,6 +1,7 @@
 export interface EvaluationRequest {
   lessonTitle: string;
   learningSource: string;
+  learningSourceFile?: File | null;
   explanationFile: File;
 }
 
@@ -20,6 +21,7 @@ export async function submitExplanation(
       const formData = new FormData();
       formData.append("lessonTitle", payload.lessonTitle);
       formData.append("learningSource", payload.learningSource);
+      if (payload.learningSourceFile) formData.append("learningSourceFile", payload.learningSourceFile);
       formData.append("explanationFile", payload.explanationFile);
       return formData;
     })(),

@@ -23,7 +23,7 @@ To connect the text evaluation flow to a backend hosted elsewhere, create `.env.
 NEXT_PUBLIC_API_BASE_URL=http://localhost:8000
 ```
 
-The frontend sends `POST /api/evaluations` as `multipart/form-data` with `lessonTitle`, `learningSource`, and `explanationFile`. Accepted files are PDF, Word (`.doc`, `.docx`), and Google Docs (`.gdoc`), up to 10 MB. If the variable is omitted, it calls the same-origin `/api/evaluations` route. The API adapter is isolated in `src/lib/evaluation.ts` so its provisional request shape can be updated when the backend contract is finalized.
+The learning source accepts pasted text or a file. The explanation accepts a file. Both upload controls support PDF, Word (`.doc`, `.docx`), and Google Docs (`.gdoc`) up to 10 MB. The frontend sends `POST /api/evaluations` as `multipart/form-data` with `lessonTitle`, `learningSource`, optional `learningSourceFile`, and `explanationFile`. If the environment variable is omitted, it calls the same-origin `/api/evaluations` route. The API adapter is isolated in `src/lib/evaluation.ts` so its provisional request shape can be updated when the backend contract is finalized.
 
 ## Structure
 
