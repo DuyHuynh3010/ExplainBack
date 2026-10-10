@@ -15,10 +15,12 @@ test("complete local session, preserved editing, selectable evidence and reset",
  const errors: string[] = [];
  const externalRequests: string[] = [];
  let evaluationAttempts = 0;
- let submittedBody: Record<string, string> | undefined;
+ let submittedBody = "";
+ let submittedContentType = "";
  await page.route("**/api/evaluations", async route => {
   evaluationAttempts += 1;
-  submittedBody = route.request().postDataJSON() as Record<string, string>;
+  submittedBody = route.request().postDataBuffer()?.toString("utf8") ?? "";
+  submittedContentType = route.request().headers()["content-type"] ?? "";
   if (evaluationAttempts === 1) await route.fulfill({ status: 503, contentType: "application/json", body: JSON.stringify({ message: "Evaluation service is unavailable." }) });
   else await route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ evaluationId: "evaluation-1" }) });
  });
@@ -38,20 +40,39 @@ test("complete local session, preserved editing, selectable evidence and reset",
  await page.getByLabel("Lesson title").fill("My biology notes");
  await page.getByRole("button", { name: "Continue", exact: true }).click();
  await expect(page.getByRole("heading", { name: "My biology notes" })).toBeVisible();
+ await expect(page.getByText("PDF, Word (.doc, .docx), or Google Docs (.gdoc)", { exact: true })).toBeVisible();
  await expect(page.getByRole("button", { name: "Evaluate", exact: true })).toBeDisabled();
- await page.getByLabel("Your explanation").fill("My edited explanation.");
+ await page.getByLabel("Upload your explanation").setInputFiles({ name: "explanation.txt", mimeType: "text/plain", buffer: Buffer.from("Not accepted") });
+ await expect(page.locator(".error-message")).toContainText("Choose a PDF, Word (.doc or .docx), or Google Docs (.gdoc) file.");
+ await expect(page.getByRole("button", { name: "Evaluate", exact: true })).toBeDisabled();
+ for (const acceptedFile of [
+  { name: "explanation.doc", mimeType: "application/msword" },
+  { name: "explanation.docx", mimeType: "application/vnd.openxmlformats-officedocument.wordprocessingml.document" },
+  { name: "explanation.gdoc", mimeType: "application/octet-stream" },
+ ]) {
+  await page.getByLabel("Upload your explanation").setInputFiles({ ...acceptedFile, buffer: Buffer.from("Accepted explanation") });
+  await expect(page.getByText(acceptedFile.name, { exact: true })).toBeVisible();
+  await page.getByRole("button", { name: `Remove ${acceptedFile.name}` }).click();
+ }
+ await page.getByLabel("Upload your explanation").setInputFiles({ name: "explanation.pdf", mimeType: "application/pdf", buffer: Buffer.from("PDF explanation content") });
+ await expect(page.getByText("explanation.pdf", { exact: true })).toBeVisible();
  expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
  await page.getByRole("button", { name: "Evaluate", exact: true }).click();
- await expect(page.locator(".error-message")).toContainText("Evaluation service is unavailable. Your explanation has been kept.");
- await expect(page.getByLabel("Your explanation")).toHaveValue("My edited explanation.");
+ await expect(page.locator(".error-message")).toContainText("Evaluation service is unavailable. Your file has been kept.");
+ await expect(page.getByText("explanation.pdf", { exact: true })).toBeVisible();
  await page.screenshot({ path: `test-results/explanation-${test.info().project.name}.png`, fullPage: true });
- expect(submittedBody).toEqual({ lessonTitle: "My biology notes", learningSource: sampleSource, explanation: "My edited explanation." });
+ expect(submittedContentType).toContain("multipart/form-data; boundary=");
+ expect(submittedBody).toContain('name="lessonTitle"');
+ expect(submittedBody).toContain("My biology notes");
+ expect(submittedBody).toContain('name="learningSource"');
+ expect(submittedBody).toContain('name="explanationFile"; filename="explanation.pdf"');
+ expect(submittedBody).toContain("PDF explanation content");
  errors.length = 0; // The intentionally mocked 503 is surfaced and handled above.
  await page.getByRole("button", { name: "Back", exact: true }).click();
  await expect(page.getByLabel("Lesson title")).toHaveValue("My biology notes");
  await expect(page.getByLabel("Paste your learning material")).toHaveValue(sampleSource);
  await page.getByRole("button", { name: "Continue", exact: true }).click();
- await expect(page.getByLabel("Your explanation")).toHaveValue("My edited explanation.");
+ await expect(page.getByText("explanation.pdf", { exact: true })).toBeVisible();
  await page.getByRole("button", { name: "Evaluate", exact: true }).click();
  await expect(page.getByRole("heading", { name: "See how the ideas connect." })).toBeVisible();
  expect(evaluationAttempts).toBe(2);
@@ -75,7 +96,8 @@ test("complete local session, preserved editing, selectable evidence and reset",
  await expect(page.getByLabel("Paste your learning material")).toHaveValue("");
  await page.getByRole("button", { name: "Load sample lesson" }).click();
  await page.getByRole("button", { name: "Continue", exact: true }).click();
- await expect(page.getByLabel("Your explanation")).toHaveValue("");
+ await expect(page.getByText("explanation.pdf", { exact: true })).toHaveCount(0);
+ await expect(page.getByRole("button", { name: "Evaluate", exact: true })).toBeDisabled();
  expect(errors).toEqual([]);
  expect(externalRequests).toEqual([]);
 });

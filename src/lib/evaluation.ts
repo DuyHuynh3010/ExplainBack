@@ -1,7 +1,7 @@
 export interface EvaluationRequest {
   lessonTitle: string;
   learningSource: string;
-  explanation: string;
+  explanationFile: File;
 }
 
 export interface EvaluationAccepted {
@@ -16,8 +16,13 @@ export async function submitExplanation(
 ): Promise<EvaluationAccepted> {
   const response = await fetch(`${API_BASE_URL}/api/evaluations`, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(payload),
+    body: (() => {
+      const formData = new FormData();
+      formData.append("lessonTitle", payload.lessonTitle);
+      formData.append("learningSource", payload.learningSource);
+      formData.append("explanationFile", payload.explanationFile);
+      return formData;
+    })(),
     signal,
   });
 
