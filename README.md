@@ -23,13 +23,13 @@ To connect the text evaluation flow to a backend hosted elsewhere, create `.env.
 NEXT_PUBLIC_API_BASE_URL=http://localhost:8000
 ```
 
-The learning source accepts pasted text or a file. The explanation accepts a file. Both upload controls support PDF, Word (`.doc`, `.docx`), and Google Docs (`.gdoc`) up to 10 MB. The frontend sends `POST /api/evaluations` as `multipart/form-data` with `lessonTitle`, `learningSource`, optional `learningSourceFile`, and `explanationFile`. If the environment variable is omitted, it calls the same-origin `/api/evaluations` route. The API adapter is isolated in `src/lib/evaluation.ts` so its provisional request shape can be updated when the backend contract is finalized.
+The learning source accepts pasted text or a file. The learner can record audio and request a transcript, type or edit explanation text, or upload an explanation file. Document uploads support PDF, Word (`.doc`, `.docx`), and Google Docs (`.gdoc`) up to 10 MB. Recording uses the browser microphone and posts `audioFile` to `POST /api/transcriptions`. Evaluation sends `POST /api/evaluations` as `multipart/form-data` with the learning source plus exactly one learner input: `explanationText` or `explanationFile`. If the environment variable is omitted, calls use same-origin routes. API adapters are isolated in `src/lib/` so provisional request shapes can be updated when backend contracts are finalized.
 
 ## Structure
 
 - `src/components/AppShell.tsx`: session state and view transitions.
 - `StepIndicator`, `SourceInput`: progress and editable source material.
-- `RecorderPreview`, `TranscriptEditor`: simulated recording, cleaned-up timers, editable sample transcript.
+- `AudioRecorder`, `RecorderPreview`, `TranscriptEditor`: microphone recording, playback, transcription, editable/manual text, and document input.
 - `UnderstandingMap`, `EvaluationDetails`, `StatusBadge`: fixed-position graph, keyboard-accessible relationship list, evidence and status counts.
 - `src/fixtures/photosynthesis.ts`: deterministic source, transcript, six nodes and five relationships; summary derives from these relationships.
 - `src/types/lesson.ts`: shared step, status and relationship types.
@@ -47,6 +47,6 @@ Playwright tests the full session at 390px and 1440px, empty-source validation, 
 
 ## Prototype limits and next integration points
 
-The recorder does not access a microphone. The transcript and results are fixed photosynthesis fixtures regardless of what is entered. No data is uploaded, transcribed, or evaluated. There is no backend, authentication, storage, AI, scoring, PDF processing, or cloud deployment.
+The recorder requests microphone access only after the user selects Start recording. Transcription and evaluation require configured backend endpoints. The results view still displays fixed photosynthesis fixtures until response rendering is integrated. There is no authentication, durable storage, scoring, or cloud deployment.
 
-TODO markers in `RecorderPreview.tsx` identify future recording, transcription, and evaluation integration points. Keep their eventual data contracts separate from the UI components. These integrations are intentionally unimplemented in this version.
+The transcription and evaluation clients live in `src/lib/`. Their routes and payloads remain provisional until the backend team finalizes those contracts.

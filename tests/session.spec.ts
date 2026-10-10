@@ -63,7 +63,7 @@ test("complete local session, preserved editing, selectable evidence and reset",
  await expect(page.getByText("explanation.pdf", { exact: true })).toBeVisible();
  expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
  await page.getByRole("button", { name: "Evaluate", exact: true }).click();
- await expect(page.locator(".error-message")).toContainText("Evaluation service is unavailable. Your file has been kept.");
+ await expect(page.locator(".error-message")).toContainText("Evaluation service is unavailable. Your current input has been kept.");
  await expect(page.getByText("explanation.pdf", { exact: true })).toBeVisible();
  await page.screenshot({ path: `test-results/explanation-${test.info().project.name}.png`, fullPage: true });
  expect(submittedContentType).toContain("multipart/form-data; boundary=");
@@ -107,4 +107,61 @@ test("complete local session, preserved editing, selectable evidence and reset",
  await expect(page.getByRole("button", { name: "Evaluate", exact: true })).toBeDisabled();
  expect(errors).toEqual([]);
  expect(externalRequests).toEqual([]);
+});
+
+test("record audio, create an editable transcript, and evaluate as text", async ({ page }) => {
+ await page.addInitScript(() => {
+  const fakeTrack = { stop() {} };
+  Object.defineProperty(navigator, "mediaDevices", { configurable: true, value: { getUserMedia: async () => ({ getTracks: () => [fakeTrack] }) } });
+  class FakeMediaRecorder extends EventTarget {
+   static isTypeSupported() { return true; }
+   state: RecordingState = "inactive";
+   mimeType = "audio/webm";
+   constructor(_stream: MediaStream, _options?: MediaRecorderOptions) { super(); }
+   start() { this.state = "recording"; }
+   stop() {
+    this.state = "inactive";
+    this.dispatchEvent(new BlobEvent("dataavailable", { data: new Blob(["recorded audio"], { type: this.mimeType }) }));
+    this.dispatchEvent(new Event("stop"));
+   }
+  }
+  Object.defineProperty(window, "MediaRecorder", { configurable: true, value: FakeMediaRecorder });
+ });
+ let evaluationBody = "";
+ await page.route("**/api/transcriptions", route => route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ data: { transcript: "Plants use light to make stored energy." } }) }));
+ await page.route("**/api/evaluations", route => {
+  evaluationBody = route.request().postDataBuffer()?.toString("utf8") ?? "";
+  return route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ evaluationId: "evaluation-text" }) });
+ });
+ await page.goto("/");
+ await page.getByRole("button", { name: "Load sample lesson" }).click();
+ await page.getByRole("button", { name: "Continue", exact: true }).click();
+ await page.getByRole("button", { name: "Start recording", exact: true }).click();
+ await expect(page.getByText("Recording from your microphone")).toBeVisible();
+ await expect(page.getByLabel("Recording duration")).toHaveText("00:01", { timeout: 4000 });
+ await page.getByRole("button", { name: "Stop", exact: true }).click();
+ await expect(page.getByText("Recording ready")).toBeVisible();
+ await expect(page.locator("audio")).toBeVisible();
+ await page.getByRole("button", { name: "Create transcript" }).click();
+ await expect(page.getByLabel("Explanation text")).toHaveValue("Plants use light to make stored energy.");
+ await page.getByLabel("Explanation text").fill("Plants use light to make stored chemical energy.");
+ await page.screenshot({ path: `test-results/record-transcript-${test.info().project.name}.png`, fullPage: true });
+ await page.getByRole("button", { name: "Evaluate", exact: true }).click();
+ await expect(page.getByRole("heading", { name: "See how the ideas connect." })).toBeVisible();
+ expect(evaluationBody).toContain('name="explanationText"');
+ expect(evaluationBody).toContain("Plants use light to make stored chemical energy.");
+ expect(evaluationBody).not.toContain('name="explanationFile"');
+});
+
+test("show a manual text fallback when microphone permission is denied", async ({ page }) => {
+ await page.addInitScript(() => {
+  Object.defineProperty(navigator, "mediaDevices", { configurable: true, value: { getUserMedia: async () => { throw new DOMException("Denied", "NotAllowedError"); } } });
+ });
+ await page.goto("/");
+ await page.getByRole("button", { name: "Load sample lesson" }).click();
+ await page.getByRole("button", { name: "Continue", exact: true }).click();
+ await page.getByRole("button", { name: "Start recording", exact: true }).click();
+ await expect(page.locator(".error-message")).toContainText("Microphone access was denied. Allow access or type your explanation instead.");
+ await page.getByLabel("Explanation text").fill("I can still explain this lesson by typing.");
+ await expect(page.getByRole("button", { name: "Evaluate", exact: true })).toBeEnabled();
 });
