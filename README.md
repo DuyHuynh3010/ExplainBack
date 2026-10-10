@@ -23,7 +23,7 @@ To connect the text evaluation flow to a backend hosted elsewhere, create `.env.
 NEXT_PUBLIC_API_BASE_URL=http://localhost:8000
 ```
 
-The learning source accepts pasted text or a file. The learner can record audio and request a transcript, type or edit explanation text, or upload an explanation file. Document uploads support PDF, Word (`.doc`, `.docx`), and Google Docs (`.gdoc`) up to 10 MB. Recording uses the browser microphone and posts `audioFile` to `POST /api/transcriptions`. Evaluation sends `POST /api/evaluations` as `multipart/form-data` with the learning source plus exactly one learner input: `explanationText` or `explanationFile`. If the environment variable is omitted, calls use same-origin routes. API adapters are isolated in `src/lib/` so provisional request shapes can be updated when backend contracts are finalized.
+The learning-source screen imports pasted text or a genuine PDF/DOCX through `POST /api/sources`. Files are limited to 3,000,000 bytes. Text uses JSON; files use multipart fields named `file` and optional `title`. The learner can still record audio, type explanation text, or upload an explanation file. Recording and evaluation keep their provisional clients until those backend endpoints are implemented.
 
 ## Structure
 
@@ -56,9 +56,9 @@ Transcription and evaluation require configured backend endpoints. The results v
 still displays fixed photosynthesis fixtures until response rendering is integrated.
 There is no authentication, durable storage, scoring, or cloud deployment.
 
-The UI's provisional file inputs accept PDF, DOC, DOCX, and GDOC up to 10 MB.
-The separate source-ingestion API accepts only PDF/DOCX files up to 3,000,000 bytes
-or JSON text. The UI does not call this endpoint yet; align formats, limits, and
-payloads before connecting these flows.
+The learning-source input now calls `POST /api/sources`. It sends text with the
+JSON contract and sends PDF/DOCX files in the `file` multipart field with an
+optional `title`. The UI mirrors the backend's 3,000,000-byte source-file limit.
+The separate explanation-file input remains provisional until evaluation is implemented.
 
 The transcription and evaluation clients live in `src/lib/`. Their routes and payloads remain provisional until the backend team finalizes those contracts.

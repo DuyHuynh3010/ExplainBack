@@ -11,10 +11,10 @@ and has not been implemented or repurposed.
 
 Code, comments, fixtures, and documentation use English. Block 2 did not modify
 UI components, CSS, `src/types/lesson.ts`, or the recorder. The merged UI has
-source/explanation file inputs and microphone recording, but its provisional
-evaluation/transcription clients do not call `POST /api/sources`. Its
-PDF/DOC/DOCX/GDOC and 10 MB file checks differ from this API's PDF/DOCX and
-3,000,000-byte limits. Coordinate these before wiring source ingestion.
+source/explanation file inputs and microphone recording. The later frontend
+integration now calls `POST /api/sources` and aligns the learning-source picker
+with PDF/DOCX and the 3,000,000-byte limit. Evaluation and transcription remain
+separate provisional clients.
 
 ## Input and limits
 
@@ -324,7 +324,7 @@ fix downgrades Mammoth to 0.3.29; that downgrade was not applied. The audit find
 remains present and is not claimed resolved.
 
 OCR, password input, DOCX page/layout reconstruction, robust mathematical rendering,
-semantic analysis, persistence, and frontend wiring remain outside this block.
+semantic analysis, persistence, and evaluation/transcription wiring remain outside this block.
 The build and HTTP tests were local; no Vercel deployment was performed. Vercel
 must use a supported Node runtime. Platform limits can reject a request before
 the route runs and may return a platform-specific error envelope.
