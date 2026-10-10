@@ -4,11 +4,11 @@
 
 The intended learning flow is:
 
-`text/PDF/DOCX -> POST /api/sources -> ImportedSource -> POST /api/analysis -> SourceAnalysis -> learner text/transcript -> future POST /api/evaluations -> EvaluationResult`.
+`text/PDF/DOCX -> POST /api/sources -> ImportedSource -> POST /api/analysis -> SourceAnalysis -> learner text/transcript -> POST /api/evaluations -> EvaluationResult`.
 
-Only source analysis is implemented here. `/api/transcriptions` and
-`/api/evaluations` remain absent, and no endpoint returns fake success. UI,
-microphone behavior, React Flow layout, database and authentication are unchanged.
+This document covers source analysis. Transcription and evaluation are now implemented
+and integrated separately; see [Blocks 3B/3C](source-explanations.md). No endpoint
+returns fake success. Database and authentication remain out of scope.
 
 The server has no session storage. Keep the complete **ImportedSource** and
 **SourceAnalysis** separately in frontend state. A document or analysis ID cannot
@@ -75,7 +75,11 @@ adherence is semantic model behavior, not guaranteed by the runtime validator.
 The official `@google/genai` SDK (installed version 2.28.0) is a production dependency.
 It supplies Gemini transport, structured JSON output and cancellation rather than
 introducing an application-specific HTTP SDK. No Zod/schema dependency is needed:
-the draft JSON schema is shared with its local runtime shape validator.
+the full draft JSON schema supplies the local runtime shape validator. The Gemini
+adapter sends a copied projection without minItems/maxItems; local validation still
+enforces every collection bound before accepting generated data. The complete
+bounded provider schema returned 400, while removing only these bounds returned
+200 with STOP and passed draft/domain validation in the follow-up diagnosis.
 
 Set **GEMINI_API_KEY** and **GEMINI_MODEL** on the backend. Neither has a default;
 missing values return AI_NOT_CONFIGURED. `.env.example` contains empty placeholders.
@@ -97,7 +101,8 @@ recommendation. Confirm availability for your account before configuring it.
 The installed SDK's generateContent types support responseMimeType and
 responseJsonSchema; this adapter uses those fields. Current REST documentation also
 shows responseFormat. An offline SDK transport test verifies the actual request
-produced by this installed version. SDK HTTP retries are explicitly disabled
+produced by this installed version and verifies that projecting provider bounds
+does not mutate the original runtime schema. SDK HTTP retries are explicitly disabled
 (`attempts: 1`); the pipeline owns the total call budget.
 
 No tools, grounding, search, code execution, file upload, billing setup or purchase
@@ -116,9 +121,9 @@ Constants: `src/backend/analysis/limits.ts`.
 | Evidence per statement / key points per topic | 4 / 20 |
 | Parsed model JSON | 100,000 UTF-16 code units |
 | Model output token ceiling per call | 8,192, including applicable model accounting |
-| AI calls per request | 2 maximum, including initial call and any repair/retry |
-| Per-call / total AI time | 25,000 / 52,000 ms |
-| Retry delay | 250 ms |
+| AI calls per request | 2 maximum, including initial call and one output repair |
+| Per-call / total AI time | 60,000 / 122,000 ms |
+| Output-repair delay | 250 ms |
 
 There is no batching. A valid Block 2 source may exceed Block 3A's supported scope;
 return 413 without silently truncating it. Input/collection size ceilings are not
@@ -132,10 +137,12 @@ structured concept/statement duplicates are remapped; there is no fuzzy name mer
 Knowledge blocks must have an extracted supporting statement. Every input block
 must be accounted for, though this does not prove every semantic claim was extracted.
 
-A temporary upstream/network failure may have one retry. Missing/rejected config,
-rate-limit, timeout, blocked output, truncated output and a valid no-knowledge result
-are not automatically retried. Error.retryable indicates whether a later user retry
-may help, not that the backend will retry now. Cancellation bounds local waiting;
+A temporary upstream/network failure is surfaced without automatic retry. Missing/
+rejected config, rate-limit, timeout, blocked output, truncated output and a valid
+no-knowledge result are also not automatically retried. Provider Retry-After, when
+present, is preserved as a numeric response header. Respect this before a user retry.
+Error.retryable indicates whether a later user retry may help, not that the backend
+will retry now. Cancellation bounds local waiting;
 Google notes that abort does not cancel service processing or applicable charges.
 The limits apply per request; there is no global rate limiter/authentication in this scope.
 
@@ -191,12 +198,34 @@ Messages are controlled: no secret, source text, prompt or SDK stack is logged/r
 | 422 | NO_EXTRACTABLE_KNOWLEDGE | Questions/exercises/no explicit knowledge |
 | 422 | ANALYSIS_FAILED | Provider blocked or did not finish usable output |
 | 429 | AI_RATE_LIMITED | Provider quota/rate limit; try later |
-| 503 | AI_NOT_CONFIGURED | Missing or rejected credentials/model/schema configuration |
+| 503 | AI_NOT_CONFIGURED | Missing config, rejected key, denied access, or model not found; controlled messages distinguish these cases |
 | 503 | UPSTREAM_UNAVAILABLE | Temporary provider/network failure after bounded retry |
 | 504 | AI_TIMEOUT | Per-call or total deadline exceeded |
 | 502 | AI_OUTPUT_INVALID | Invalid output after the repair budget |
 | 502 | AI_OUTPUT_TRUNCATED | Provider reached output limit |
-| 500 | ANALYSIS_FAILED | Unexpected local failure |
+| 500 | ANALYSIS_FAILED | Upstream request/schema/generation-config rejection (400), or unexpected local failure |
+
+Every response includes a server-generated `x-request-id`. Server diagnostic logs
+contain only stage/call numbers, elapsed times, config presence/model, outgoing
+schema size/bounds, upstream status/code, finish reason/token counts and validation
+outcomes. No source text, prompts, quotes, SDK error messages or keys are logged.
+In development the same metadata is written to the ignored
+`.next/dev/logs/source-analysis.jsonl`; production uses console logging only.
+
+The SDK's timeout option also sets `X-Server-Timeout` in seconds. A live short-source
+request returned upstream 504 DEADLINE_EXCEEDED at 24.3 seconds with the old 25-second
+setting, before the pipeline timer. It had one initial call and no output repair.
+The SDK and pipeline now share a 60-second call window; the 122-second total window
+allows one bounded repair. The UI fetch has no independent timeout (only user/reset
+cancellation), and the opt-in browser smoke derives its deadlines from these limits.
+The HTTP route adds no separate local timer. These are local-app limits, not a
+guarantee about production hosting timeouts or real-model response latency.
+
+Upstream 400 alone does not establish an invalid key or model. Explicit invalid/expired
+key diagnostics map to AI_NOT_CONFIGURED; other invalid arguments map to ANALYSIS_FAILED
+without repair or automatic retry. Raw upstream messages are not exposed. See the
+[local Gemini diagnosis](gemini-diagnosis.md) for the observed configuration failure
+and the remaining inconclusive schema/provider observations.
 
 ## Local verification from PowerShell
 
@@ -264,27 +293,17 @@ Without valid config no live smoke is claimed; no billing is activated by setup.
 
 ## Frontend handoff and subsequent endpoints
 
-The teammate owning UI should call /api/sources, store its complete result, then
-call /api/analysis and retain both results across steps. Clear stale analysis when
+The [UI integration](ui-source-analysis.md) now calls /api/sources, stores its complete result,
+then calls /api/analysis and retains both results across steps. Clear stale analysis when
 source changes, preserve input on errors, display source/analysis warnings, topics,
 summaries and evidence. Filter domain concepts/statements by topic and calculate
 React Flow positions in a frontend adapter. Source graph edges have no learner
-evaluation status. Do not map source analysis into the old Relationship shape by
-inventing correct/missing badges. The existing results view remains fixture-based.
+evaluation status. The frontend uses a separate reference-graph adapter and never
+invents correct/missing badges or substitutes demo results when the API fails.
 
-Proposed contracts for later blocks, not additional implemented schemas:
-
-- `/api/transcriptions`: retain multipart `audioFile`, return
-  `ApiResponse<{ transcript: string }>` so its text can feed the existing learner
-  text contract. The current client already accepts data.transcript but needs
-  error-envelope alignment. Audio limits/provider/format support remain to be agreed.
-- `/api/evaluations`: reuse **EvaluateTextRequest** (schemaVersion, full SourceAnalysis,
-  topicIds, learner.text) and **ApiResponse<EvaluationResult>** from Block 1. The
-  current multipart lessonTitle/learningSource/files payload and evaluationId-only
-  response are provisional and need replacing, not maintaining as a parallel schema.
-  Voice becomes text first. Learner file support, if retained, needs its own agreed
-  normalization step before evaluation; it is not implemented in 3A.
-
-The legacy Block 1 raw text/PDF analyze types remain for compatibility with fixtures
-and tests; `/api/source/analyze` is still unimplemented. **AnalyzeImportedSourceRequest**
-at `/api/analysis` is the canonical source-analysis input for the implemented flow.
+Blocks 3B/3C now implement multipart `audioFile` transcription and JSON
+`EvaluateTextRequest` evaluation with full ImportedSource and SourceAnalysis.
+PDF/DOCX explanations reuse ingestion before becoming editable learner text.
+See [Transcription and evaluation](source-explanations.md) for the implemented
+contracts, UI integration, limits and live evidence. Source analysis itself still
+returns source knowledge only, without evaluation statuses or layout coordinates.

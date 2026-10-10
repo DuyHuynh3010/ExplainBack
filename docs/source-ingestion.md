@@ -18,6 +18,11 @@ integration now calls `POST /api/sources` and aligns the learning-source picker
 with PDF/DOCX and the 3,000,000-byte limit. Evaluation and transcription remain
 separate provisional clients.
 
+The current [UI integration](ui-source-analysis.md) also sends the full ImportedSource
+to /api/analysis and displays real topic graphs, summaries, evidence and warnings.
+It reuses this ingestion client and retains the imported payload for analysis retry.
+Transcription/evaluation actions are explicitly unavailable in this integration.
+
 ## Input and limits
 
 | Limit | Value |

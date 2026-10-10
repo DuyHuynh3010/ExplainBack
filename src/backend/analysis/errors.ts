@@ -6,6 +6,7 @@ export class AnalysisError extends Error {
     readonly status: number,
     message: string,
     readonly retryable = false,
+    readonly retryAfterSeconds?: number,
   ) { super(message); this.name = "AnalysisError"; }
 }
 

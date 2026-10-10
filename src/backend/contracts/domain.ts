@@ -149,6 +149,8 @@ export interface StatementRef {
 
 export interface ComparisonItem {
   id: string;
+  /** Block 3C emits one comparison per source statement. Legacy grouped items may omit this. */
+  referenceRelationshipId?: string;
   /** Always a topic ID in the source graph. */
   topicId: string;
   sourceStatements: StatementRef[];

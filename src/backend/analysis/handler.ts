@@ -1,4 +1,6 @@
 import type { AnalyzeSourceResponse } from "../contracts/api";
+import { randomUUID } from "node:crypto";
+import { createAnalysisDiagnostic, type AnalysisDiagnostic } from "./diagnostics";
 import type { AnalysisProvider } from "./provider";
 import { AnalysisError } from "./errors";
 import { ANALYSIS_LIMITS } from "./limits";
@@ -24,16 +26,24 @@ async function readJson(request: Request): Promise<unknown> {
   catch { throw new AnalysisError("INVALID_REQUEST", 400, "Analysis request must be valid UTF-8 JSON."); }
 }
 
-export async function handleAnalysisRequest(request: Request, providerFactory: () => AnalysisProvider = createGeminiProvider): Promise<Response> {
+export async function handleAnalysisRequest(request: Request, providerFactory: (diagnostic?: AnalysisDiagnostic) => AnalysisProvider = diagnostic => createGeminiProvider(process.env, undefined, diagnostic)): Promise<Response> {
+  const requestId = randomUUID();
+  const diagnostic = createAnalysisDiagnostic(requestId);
+  diagnostic({ stage: "request_start" });
+  const headers: Record<string, string> = { "cache-control": "no-store", "x-request-id": requestId };
   try {
     // Validate before configuration/network, so invalid inputs never consume AI calls.
     const input = validateAnalysisInput(await readJson(request));
-    const data = await analyzeImportedSource(input, providerFactory());
+    diagnostic({ stage: "input_validation", validation: "passed" });
+    const data = await analyzeImportedSource(input, providerFactory(diagnostic), { diagnostic });
     const body: AnalyzeSourceResponse = { ok: true, schemaVersion: "1.0", data };
-    return Response.json(body, { headers: { "cache-control": "no-store" } });
+    diagnostic({ stage: "request_complete", validation: "passed" });
+    return Response.json(body, { headers });
   } catch (error) {
     const safe = error instanceof AnalysisError ? error : new AnalysisError("ANALYSIS_FAILED", 500, "Source analysis could not be completed.");
+    diagnostic({ stage: "request_failed", code: safe.code, retryAfterSeconds: safe.retryAfterSeconds });
+    if (safe.retryAfterSeconds !== undefined) headers["retry-after"] = String(safe.retryAfterSeconds);
     const body: AnalyzeSourceResponse = { ok: false, schemaVersion: "1.0", error: { code: safe.code, message: safe.message, retryable: safe.retryable } };
-    return Response.json(body, { status: safe.status, headers: { "cache-control": "no-store" } });
+    return Response.json(body, { status: safe.status, headers });
   }
 }

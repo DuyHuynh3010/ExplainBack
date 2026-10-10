@@ -412,5 +412,26 @@ See [Source analysis](source-analysis.md) for the Gemini adapter, request/respon
 limits, bounded repair/retry policy, evidence positions, tests and frontend handoff.
 New error codes are AI_NOT_CONFIGURED, AI_TIMEOUT, AI_RATE_LIMITED,
 AI_OUTPUT_INVALID, AI_OUTPUT_TRUNCATED and NO_EXTRACTABLE_KNOWLEDGE.
-Transcription/evaluation remain unimplemented; later evaluation should reuse
-EvaluateTextRequest/EvaluationResult rather than the provisional UI multipart schema.
+The subsequent Block 3B/3C integration implements transcription and evaluation
+using EvaluateTextRequest/EvaluationResult; see [implemented contracts](source-explanations.md).
+
+## Source-analysis UI integration
+
+The source-analysis screen now consumes ImportedSource and SourceAnalysis separately.
+The earlier UI mapping is historical: the active reference map uses a frontend-only
+layout adapter and has no Relationship evaluation statuses. Topic summaries retain
+their statement links; evidence uses block locations and block-local UTF-16 ranges.
+No backend contract changed in this integration. See [UI integration](ui-source-analysis.md).
+Learner evaluation and transcription are now implemented; see [Blocks 3B/3C](source-explanations.md). Source-only graphs remain neutral; feedback overlays preserve source IDs and endpoints.
+
+## Block 3B/3C contract additions
+
+POST /api/transcriptions uses audioFile and TranscriptionResponse. POST
+/api/evaluations requires the full importedSource in addition to the existing
+sourceAnalysis, topicIds and learner.text. importedSource is optional only for
+legacy Block 1 fixture compatibility. New one-per-source-statement comparisons
+include referenceRelationshipId, validated against their sole sourceStatements
+reference; the optional alias preserves old grouped examples. Error envelopes
+also support TRANSCRIPTION_FAILED. Existing graph/evidence range conventions,
+status values and separation of knowledge from grading are unchanged. See
+[source-explanations.md](source-explanations.md) for limits and validation details.

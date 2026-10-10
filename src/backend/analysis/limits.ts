@@ -11,7 +11,9 @@ export const ANALYSIS_LIMITS = {
   outputCharacters: 100_000,
   outputTokens: 8_192,
   maxCalls: 2,
-  callTimeoutMs: 25_000,
-  totalTimeoutMs: 52_000,
+  // SDK sends this as X-Server-Timeout as well as using it for transport.
+  // A real short extraction hit the former 25-second upstream deadline.
+  callTimeoutMs: 60_000,
+  totalTimeoutMs: 122_000,
   retryDelayMs: 250,
 } as const;

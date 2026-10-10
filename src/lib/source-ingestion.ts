@@ -1,5 +1,6 @@
 import type { ImportSourceResponse } from "@/backend/contracts/api";
 import type { ImportedSource } from "@/backend/contracts/domain";
+import { validateImportedSource } from "@/backend/contracts/validate";
 
 export interface SourceInputPayload {
   title: string;
@@ -21,6 +22,7 @@ export async function importLearningSource(
   if (!response.ok || !result?.ok) {
     throw new Error(result && !result.ok ? result.error.message : "We couldn’t import this learning source. Please try again.");
   }
+  if (!validateImportedSource(result.data).valid) throw new Error("The import service returned an invalid source. Please try again.");
   return result.data;
 }
 

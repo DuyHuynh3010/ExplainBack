@@ -135,9 +135,14 @@ test("exact duplicates are remapped without fuzzy concept merging", async () => 
 
 test("invalid JSON can be repaired with one bounded complete regeneration", async () => {
   const request = input(); const provider = mock([{ text: "{", finishReason: "stop" }, done(draft(request.importedSource))]);
-  await run(request, provider);
+  const events = [];
+  await run(request, provider, { diagnostic: event => events.push(event) });
   assert.equal(provider.calls.length, 2);
   assert.equal(JSON.parse(provider.calls[1].prompt).repair.error, "AI output must be valid JSON.");
+  assert.deepEqual(events.filter(e => e.stage === "call_start").map(e => e.purpose), ["initial", "repair"]);
+  assert.equal(events.find(e => e.stage === "call_failed").failedStage, "draft_validation");
+  assert.equal(events.at(-1).validation, "passed");
+  assert.equal(JSON.stringify(events).includes(request.importedSource.normalizedText), false);
 });
 
 for (const finishReason of ["truncated", "blocked"]) test(`${finishReason} output fails without another paid call`, async () => {
@@ -156,9 +161,11 @@ test("output size and collection ceilings reject without accepting partial resul
 
 test("timeout aborts even a provider ignoring cancellation and is not retried", async () => {
   let signal; let calls = 0;
+  const events = [];
   const provider = { generate: request => { calls++; signal = request.signal; return new Promise(() => {}); } };
-  await assert.rejects(run(input(), provider, { callTimeoutMs: 5 }), code("AI_TIMEOUT"));
+  await assert.rejects(run(input(), provider, { callTimeoutMs: 5, diagnostic: event => events.push(event) }), code("AI_TIMEOUT"));
   assert.equal(signal.aborted, true); assert.equal(calls, 1);
+  assert.equal(events.find(e => e.stage === "call_timeout").timeoutOrigin, "pipeline");
 });
 
 test("total deadline bounds retries", async () => {
@@ -168,10 +175,10 @@ test("total deadline bounds retries", async () => {
   assert.equal(calls, 1);
 });
 
-test("temporary upstream error has one retry; rate limit has none", async () => {
+test("temporary upstream error and rate limit are surfaced without automatic retries", async () => {
   const request = input();
   const temporary = mock([new AnalysisError("UPSTREAM_UNAVAILABLE", 503, "Unavailable", true), done(draft(request.importedSource))]);
-  await run(request, temporary); assert.equal(temporary.calls.length, 2);
+  await assert.rejects(run(request, temporary), code("UPSTREAM_UNAVAILABLE")); assert.equal(temporary.calls.length, 1);
   const limited = mock([new AnalysisError("AI_RATE_LIMITED", 429, "Rate limited", true)]);
   await assert.rejects(run(request, limited), code("AI_RATE_LIMITED")); assert.equal(limited.calls.length, 1);
 });
@@ -273,17 +280,38 @@ test("missing provider config and unsafe errors never expose secrets or parser e
 
 test("official SDK adapter sends schema and handles finish reasons through an offline transport", async () => {
   let calls = 0;
+  const { ANALYSIS_DRAFT_SCHEMA } = require("../../test-results/analysis-build/backend/analysis/draft.js");
+  const before = structuredClone(ANALYSIS_DRAFT_SCHEMA);
   const transport = async (_url, options) => {
     calls++; const payload = JSON.parse(options.body);
+    assert.equal(new Headers(options.headers).get("x-server-timeout"), String(L.callTimeoutMs / 1000));
     assert.equal(payload.generationConfig.responseMimeType, "application/json");
     assert.equal(payload.generationConfig.maxOutputTokens, L.outputTokens);
     assert.ok(payload.generationConfig.responseJsonSchema.properties.statements);
+    const inspect = rule => {
+      assert.equal(Object.hasOwn(rule, "minItems"), false);
+      assert.equal(Object.hasOwn(rule, "maxItems"), false);
+      if (rule.type === "object") { assert.equal(rule.additionalProperties, false); assert.ok(rule.required.length); }
+      if (rule.items) inspect(rule.items);
+      for (const child of Object.values(rule.properties ?? {})) inspect(child);
+    };
+    inspect(payload.generationConfig.responseJsonSchema);
+    assert.deepEqual(payload.generationConfig.responseJsonSchema.properties.statements.items.properties.role.enum, before.properties.statements.items.properties.role.enum);
     return Response.json({ candidates: [{ finishReason: "STOP", content: { role: "model", parts: [{ text: "{}" }] } }] });
   };
   const provider = createGeminiProvider({ GEMINI_API_KEY: "synthetic-not-a-real-key", GEMINI_MODEL: "synthetic-model" }, transport);
-  const { ANALYSIS_DRAFT_SCHEMA } = require("../../test-results/analysis-build/backend/analysis/draft.js");
   const result = await provider.generate({ prompt: "Synthetic input", systemInstruction: "Extract knowledge", schema: ANALYSIS_DRAFT_SCHEMA, maxOutputTokens: L.outputTokens, signal: new AbortController().signal });
   assert.equal(result.finishReason, "stop"); assert.equal(result.text, "{}"); assert.equal(calls, 1);
+  assert.deepEqual(ANALYSIS_DRAFT_SCHEMA, before);
+});
+
+test("local collection bounds remain strict after simplifying the Gemini schema", () => {
+  const { parseDraft } = require("../../test-results/analysis-build/backend/analysis/draft.js");
+  const source = input().importedSource;
+  const tooMany = draft(source); tooMany.statements[0].conditions = Array(21).fill("Condition");
+  assert.throws(() => parseDraft(JSON.stringify(tooMany)), code("AI_OUTPUT_INVALID"));
+  const tooFew = draft(source); tooFew.statements[0].evidence = [];
+  assert.throws(() => parseDraft(JSON.stringify(tooFew)), code("AI_OUTPUT_INVALID"));
 });
 
 for (const [status, expected] of [[429, "AI_RATE_LIMITED"], [503, "UPSTREAM_UNAVAILABLE"], [403, "AI_NOT_CONFIGURED"]]) test(`SDK status ${status} becomes safe ${expected} without hidden retries`, async () => {
@@ -292,4 +320,67 @@ for (const [status, expected] of [[429, "AI_RATE_LIMITED"], [503, "UPSTREAM_UNAV
   const { ANALYSIS_DRAFT_SCHEMA } = require("../../test-results/analysis-build/backend/analysis/draft.js");
   await assert.rejects(provider.generate({ prompt: "Synthetic input", systemInstruction: "Extract", schema: ANALYSIS_DRAFT_SCHEMA, maxOutputTokens: L.outputTokens, signal: new AbortController().signal }), code(expected));
   assert.equal(calls, 1);
+});
+
+const rejectedRequests = [
+  ["invalid credentials", 401, "UNAUTHENTICATED", "Invalid credentials", undefined, "AI_NOT_CONFIGURED", 503, /GEMINI_API_KEY/],
+  ["access restrictions", 403, "PERMISSION_DENIED", "Access denied", undefined, "AI_NOT_CONFIGURED", 503, /restrictions.*permissions.*model access/],
+  ["unknown model", 404, "NOT_FOUND", "Model does not exist", undefined, "AI_NOT_CONFIGURED", 503, /GEMINI_MODEL.*ListModels/],
+  ["invalid key reason", 400, "INVALID_ARGUMENT", "Bad request", [{ reason: "API_KEY_INVALID" }], "AI_NOT_CONFIGURED", 503, /GEMINI_API_KEY/],
+  ["expired key", 400, "INVALID_ARGUMENT", "API key has expired", undefined, "AI_NOT_CONFIGURED", 503, /GEMINI_API_KEY/],
+  ["structured schema", 400, "INVALID_ARGUMENT", "Invalid responseJsonSchema", undefined, "ANALYSIS_FAILED", 500, /structured-output schema/],
+  ["SDK generation config", 400, "INVALID_ARGUMENT", "Invalid generation_config.response_format.text.mime_type", undefined, "ANALYSIS_FAILED", 500, /adapter compatibility/],
+  ["unspecified invalid argument", 400, "INVALID_ARGUMENT", "Request contains an invalid argument.", undefined, "ANALYSIS_FAILED", 500, /does not establish a key or model error/],
+];
+for (const [name, upstreamStatus, status, diagnostic, details, expectedCode, expectedStatus, message] of rejectedRequests) test(`HTTP distinguishes ${name}, redacts upstream details and does not retry`, async () => {
+  let calls = 0;
+  const provider = createGeminiProvider({ GEMINI_API_KEY: "synthetic-not-a-real-key", GEMINI_MODEL: "synthetic-model" }, async () => {
+    calls++;
+    return Response.json({ error: { code: upstreamStatus, status, message: `${diagnostic} synthetic-not-a-real-key secret/raw diagnostic`, details } }, { status: upstreamStatus });
+  });
+  const response = await handleAnalysisRequest(httpRequest(input()), () => provider);
+  const body = await response.json();
+  assert.equal(response.status, expectedStatus);
+  assert.equal(body.error.code, expectedCode);
+  assert.equal(body.error.retryable, false);
+  assert.match(body.error.message, message);
+  assert.equal(JSON.stringify(body).includes("synthetic-not-a-real-key"), false);
+  assert.equal(JSON.stringify(body).includes("secret/raw"), false);
+  assert.equal(calls, 1);
+});
+
+for (const status of [429, 503]) test(`HTTP preserves Retry-After for upstream ${status}, with exactly one call`, async () => {
+  let calls = 0;
+  const response = await handleAnalysisRequest(httpRequest(input()), diagnostic => createGeminiProvider(
+    { GEMINI_API_KEY: "synthetic-not-a-real-key", GEMINI_MODEL: "synthetic-model" }, async () => {
+      calls++;
+      return Response.json({ error: { code: status, status: status === 429 ? "RESOURCE_EXHAUSTED" : "UNAVAILABLE", message: "secret/raw" } }, { status, headers: { "retry-after": "120" } });
+    }, diagnostic));
+  assert.equal(response.status, status);
+  assert.equal(response.headers.get("retry-after"), "120");
+  assert.match(response.headers.get("x-request-id"), /^[a-f0-9-]{36}$/);
+  assert.equal((await response.json()).error.retryable, true);
+  assert.equal(calls, 1);
+});
+
+test("Retry-After numeric/date parsing never exposes arbitrary header text", () => {
+  const { retryAfterSeconds } = require("../../test-results/analysis-build/backend/analysis/diagnostics.js");
+  const now = Date.UTC(2026, 9, 10);
+  assert.equal(retryAfterSeconds("60", now), 60);
+  assert.equal(retryAfterSeconds(new Date(now + 90_000).toUTCString(), now), 90);
+  assert.equal(retryAfterSeconds("secret/raw header", now), undefined);
+  assert.equal(retryAfterSeconds(null, now), undefined);
+});
+
+test("SDK metadata distinguishes upstream 504 from application timeout without logging payloads", async () => {
+  const events = [];
+  const provider = createGeminiProvider({ GEMINI_API_KEY: "synthetic-not-a-real-key", GEMINI_MODEL: "synthetic-model" },
+    async () => Response.json({ error: { code: 504, status: "DEADLINE_EXCEEDED", message: "secret/raw diagnostic" } }, { status: 504 }),
+    event => events.push(event));
+  const { ANALYSIS_DRAFT_SCHEMA } = require("../../test-results/analysis-build/backend/analysis/draft.js");
+  await assert.rejects(provider.generate({ prompt: "private source text", systemInstruction: "Extract", schema: ANALYSIS_DRAFT_SCHEMA, maxOutputTokens: L.outputTokens, signal: new AbortController().signal }), code("AI_TIMEOUT"));
+  assert.equal(events.find(e => e.stage === "sdk_request").schemaHasArrayBounds, false);
+  assert.equal(events.find(e => e.stage === "upstream_response").upstreamCode, "DEADLINE_EXCEEDED");
+  assert.equal(events.find(e => e.stage === "upstream_timeout").timeoutOrigin, "upstream");
+  for (const sensitive of ["synthetic-not-a-real-key", "private source text", "secret/raw"]) assert.equal(JSON.stringify(events).includes(sensitive), false);
 });

@@ -24,7 +24,7 @@ export interface AnalysisDraft {
   }[];
 }
 
-interface JsonRule {
+export interface JsonRule {
   type: "object" | "array" | "string" | "boolean";
   properties?: Record<string, JsonRule>;
   required?: string[];
@@ -39,7 +39,9 @@ const list = (items: JsonRule, maxItems: number, minItems = 0): JsonRule => ({ t
 const obj = (properties: Record<string, JsonRule>, optional: string[] = []): JsonRule => ({
   type: "object", properties, required: Object.keys(properties).filter(k => !optional.includes(k)), additionalProperties: false,
 });
-/** One schema for Gemini structured output and local runtime shape validation. */
+/** Full runtime schema. Gemini receives the same shape without array bounds;
+ * all minItems/maxItems limits are still enforced here before normalization.
+ */
 export const ANALYSIS_DRAFT_SCHEMA: JsonRule = obj({
   blockDispositions: list(obj({ blockId: text, kind: { type: "string", enum: ["knowledge", "questions", "mixed", "other"] } }), L.blocks, 1),
   topics: list(obj({ id: text, title: text }), L.topics),
@@ -56,7 +58,7 @@ export const ANALYSIS_DRAFT_SCHEMA: JsonRule = obj({
   }), L.topics),
 });
 
-function matches(value: unknown, rule: JsonRule): boolean {
+export function matches(value: unknown, rule: JsonRule): boolean {
   if (rule.type === "string") return typeof value === "string" && !!value.trim() && (!rule.enum || rule.enum.includes(value));
   if (rule.type === "boolean") return typeof value === "boolean";
   if (rule.type === "array") return Array.isArray(value) && value.length >= (rule.minItems ?? 0) && value.length <= (rule.maxItems ?? Infinity) && value.every(v => matches(v, rule.items!));
