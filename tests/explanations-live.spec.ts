@@ -43,7 +43,8 @@ test("live: source -> text evaluation -> editable voice transcript -> voice eval
   await expect(page.getByRole("article", { name: "Explanation feedback" })).toBeVisible();
   for (const topic of source.data.graph.topics) { await page.getByLabel("Topic", { exact: true }).selectOption(topic.id); await expect(page.getByRole("heading", { name: "Compare graphs", exact: true })).toBeVisible(); }
   await page.screenshot({ path: "test-results/live-text-feedback.png", fullPage: true });
-  await page.getByRole("button", { name: "Edit and try again" }).click();
+  await page.getByRole("button", { name: "Review flashcards" }).click();
+  await page.getByRole("button", { name: "Explain again" }).click();
   await page.getByRole("button", { name: "Start recording", exact: true }).click();
   await expect(page.getByText("Recording from your microphone")).toBeVisible();
   await page.waitForTimeout(12_000);
