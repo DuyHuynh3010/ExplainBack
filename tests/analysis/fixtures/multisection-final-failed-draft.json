@@ -1,0 +1,648 @@
+{
+  "blockDispositions": [
+    {
+      "blockId": "block-0",
+      "kind": "knowledge"
+    },
+    {
+      "blockId": "block-1",
+      "kind": "knowledge"
+    },
+    {
+      "blockId": "block-2",
+      "kind": "knowledge"
+    },
+    {
+      "blockId": "block-3",
+      "kind": "knowledge"
+    },
+    {
+      "blockId": "block-4",
+      "kind": "knowledge"
+    }
+  ],
+  "topics": [
+    {
+      "id": "t1",
+      "title": "Photosynthesis Overview"
+    },
+    {
+      "id": "t2",
+      "title": "Chlorophyll and Chloroplasts"
+    },
+    {
+      "id": "t3",
+      "title": "Stages of Photosynthesis"
+    },
+    {
+      "id": "t4",
+      "title": "C3 and C4 Photosynthesis"
+    }
+  ],
+  "concepts": [
+    {
+      "id": "t1-life",
+      "topicId": "t1",
+      "name": "life on Earth",
+      "aliases": []
+    },
+    {
+      "id": "t1-photosynthesis",
+      "topicId": "t1",
+      "name": "photosynthesis",
+      "aliases": []
+    },
+    {
+      "id": "t1-organisms",
+      "topicId": "t1",
+      "name": "plants, algae, and some types of bacteria",
+      "aliases": []
+    },
+    {
+      "id": "t1-sunlight",
+      "topicId": "t1",
+      "name": "sunlight",
+      "aliases": []
+    },
+    {
+      "id": "t1-oxygen",
+      "topicId": "t1",
+      "name": "oxygen (O2)",
+      "aliases": []
+    },
+    {
+      "id": "t1-glucose",
+      "topicId": "t1",
+      "name": "glucose (a sugar)",
+      "aliases": []
+    },
+    {
+      "id": "t1-carbon-dioxide",
+      "topicId": "t1",
+      "name": "carbon dioxide (CO2)",
+      "aliases": []
+    },
+    {
+      "id": "t1-water",
+      "topicId": "t1",
+      "name": "water (H2O)",
+      "aliases": []
+    },
+    {
+      "id": "t2-chloroplasts",
+      "topicId": "t2",
+      "name": "chloroplasts",
+      "aliases": []
+    },
+    {
+      "id": "t2-thylakoid-membranes",
+      "topicId": "t2",
+      "name": "thylakoid membranes",
+      "aliases": []
+    },
+    {
+      "id": "t2-chlorophyll",
+      "topicId": "t2",
+      "name": "chlorophyll",
+      "aliases": []
+    },
+    {
+      "id": "t2-green-color",
+      "topicId": "t2",
+      "name": "green color",
+      "aliases": []
+    },
+    {
+      "id": "t2-blue-red-light",
+      "topicId": "t2",
+      "name": "blue- and red-light waves",
+      "aliases": []
+    },
+    {
+      "id": "t2-green-light",
+      "topicId": "t2",
+      "name": "green-light waves",
+      "aliases": []
+    },
+    {
+      "id": "t3-light-dependent",
+      "topicId": "t3",
+      "name": "light-dependent reactions",
+      "aliases": []
+    },
+    {
+      "id": "t3-light-independent",
+      "topicId": "t3",
+      "name": "light-independent reactions",
+      "aliases": []
+    },
+    {
+      "id": "t3-calvin-cycle",
+      "topicId": "t3",
+      "name": "Calvin cycle",
+      "aliases": []
+    },
+    {
+      "id": "t3-stroma",
+      "topicId": "t3",
+      "name": "stroma",
+      "aliases": []
+    },
+    {
+      "id": "t3-atp-nadph",
+      "topicId": "t3",
+      "name": "ATP and NADPH",
+      "aliases": []
+    },
+    {
+      "id": "t4-c3",
+      "topicId": "t4",
+      "name": "C3 photosynthesis",
+      "aliases": []
+    },
+    {
+      "id": "t4-c4",
+      "topicId": "t4",
+      "name": "C4 photosynthesis",
+      "aliases": []
+    },
+    {
+      "id": "t4-three-carbon",
+      "topicId": "t4",
+      "name": "3-phosphoglyceric acid",
+      "aliases": []
+    },
+    {
+      "id": "t4-four-carbon",
+      "topicId": "t4",
+      "name": "four-carbon intermediate compound",
+      "aliases": []
+    }
+  ],
+  "statements": [
+    {
+      "id": "s1",
+      "topicId": "t1",
+      "subjectConceptId": "t1-life",
+      "relation": "depends on",
+      "objectConceptId": "t1-photosynthesis",
+      "assertion": "Most life on Earth depends on photosynthesis.",
+      "negated": false,
+      "conditions": [],
+      "role": "fact",
+      "evidence": [
+        {
+          "blockId": "block-0",
+          "quote": "Most life on Earth depends on photosynthesis.",
+          "contextAfter": "The process is carried out by plants, algae, and some types of bacteria, which capture energy from sunlight to produce oxygen (O2) and chemical energy stored in glucose (a sugar). Herbivores then obtain this energy by eating plants, and carnivores obtain it by eating herbivores."
+        }
+      ]
+    },
+    {
+      "id": "s2",
+      "topicId": "t1",
+      "subjectConceptId": "t1-photosynthesis",
+      "relation": "carried out by",
+      "objectConceptId": "t1-organisms",
+      "assertion": "Photosynthesis is carried out by plants, algae, and some types of bacteria.",
+      "negated": false,
+      "conditions": [],
+      "role": "fact",
+      "evidence": [
+        {
+          "blockId": "block-0",
+          "quote": "The process is carried out by plants, algae, and some types of bacteria,",
+          "contextBefore": "Most life on Earth depends on photosynthesis.",
+          "contextAfter": " which capture energy from sunlight to produce oxygen (O2) and chemical energy stored in glucose (a sugar). Herbivores then obtain this energy by eating plants, and carnivores obtain it by eating herbivores."
+        }
+      ]
+    },
+    {
+      "id": "s3",
+      "topicId": "t1",
+      "subjectConceptId": "t1-organisms",
+      "relation": "capture",
+      "objectConceptId": "t1-sunlight",
+      "assertion": "Plants, algae, and some types of bacteria capture energy from sunlight.",
+      "negated": false,
+      "conditions": [],
+      "role": "mechanism",
+      "evidence": [
+        {
+          "blockId": "block-0",
+          "quote": "plants, algae, and some types of bacteria, which capture energy from sunlight",
+          "contextBefore": "Most life on Earth depends on photosynthesis.The process is carried out by ",
+          "contextAfter": " to produce oxygen (O2) and chemical energy stored in glucose (a sugar). Herbivores then obtain this energy by eating plants, and carnivores obtain it by eating herbivores."
+        }
+      ]
+    },
+    {
+      "id": "s4",
+      "topicId": "t1",
+      "subjectConceptId": "t1-photosynthesis",
+      "relation": "produce",
+      "objectConceptId": "t1-oxygen",
+      "assertion": "Photosynthesis produces oxygen.",
+      "negated": false,
+      "conditions": [],
+      "role": "fact",
+      "evidence": [
+        {
+          "blockId": "block-0",
+          "quote": "produce oxygen (O2)",
+          "contextBefore": "Most life on Earth depends on photosynthesis.The process is carried out by plants, algae, and some types of bacteria, which capture energy from sunlight to ",
+          "contextAfter": " and chemical energy stored in glucose (a sugar). Herbivores then obtain this energy by eating plants, and carnivores obtain it by eating herbivores."
+        }
+      ]
+    },
+    {
+      "id": "s5",
+      "topicId": "t1",
+      "subjectConceptId": "t1-photosynthesis",
+      "relation": "produce",
+      "objectConceptId": "t1-glucose",
+      "assertion": "Photosynthesis produces chemical energy stored in glucose.",
+      "negated": false,
+      "conditions": [],
+      "role": "fact",
+      "evidence": [
+        {
+          "blockId": "block-0",
+          "quote": "chemical energy stored in glucose (a sugar)",
+          "contextBefore": "Most life on Earth depends on photosynthesis.The process is carried out by plants, algae, and some types of bacteria, which capture energy from sunlight to produce oxygen (O2) and ",
+          "contextAfter": ". Herbivores then obtain this energy by eating plants, and carnivores obtain it by eating herbivores."
+        }
+      ]
+    },
+    {
+      "id": "s6",
+      "topicId": "t1",
+      "subjectConceptId": "t1-organisms",
+      "relation": "take in",
+      "objectConceptId": "t1-carbon-dioxide",
+      "assertion": "Plants take in carbon dioxide from the air and soil.",
+      "negated": false,
+      "conditions": [],
+      "role": "mechanism",
+      "evidence": [
+        {
+          "blockId": "block-1",
+          "quote": "plants take in carbon dioxide (CO2)",
+          "contextBefore": "During photosynthesis, ",
+          "contextAfter": " and water (H2O) from the air and soil. Within the plant cell, the water is oxidized, meaning it loses electrons, while the carbon dioxide is reduced, meaning it gains electrons. This transforms the water into oxygen and the carbon dioxide into glucose. The plant then releases the oxygen back into the air, and stores energy within the glucose molecules."
+        }
+      ]
+    },
+    {
+      "id": "s7",
+      "topicId": "t1",
+      "subjectConceptId": "t1-organisms",
+      "relation": "take in",
+      "objectConceptId": "t1-water",
+      "assertion": "Plants take in water from the air and soil.",
+      "negated": false,
+      "conditions": [],
+      "role": "mechanism",
+      "evidence": [
+        {
+          "blockId": "block-1",
+          "quote": "water (H2O)",
+          "contextBefore": "During photosynthesis, plants take in carbon dioxide (CO2) and ",
+          "contextAfter": " from the air and soil. Within the plant cell, the water is oxidized, meaning it loses electrons, while the carbon dioxide is reduced, meaning it gains electrons. This transforms the water into oxygen and the carbon dioxide into glucose. The plant then releases the oxygen back into the air, and stores energy within the glucose molecules."
+        }
+      ]
+    },
+    {
+      "id": "s8",
+      "topicId": "t1",
+      "subjectConceptId": "t1-water",
+      "relation": "transforms into",
+      "objectConceptId": "t1-oxygen",
+      "assertion": "Water is transformed into oxygen during photosynthesis.",
+      "negated": false,
+      "conditions": [],
+      "role": "mechanism",
+      "evidence": [
+        {
+          "blockId": "block-1",
+          "quote": "This transforms the water into oxygen",
+          "contextBefore": "During photosynthesis, plants take in carbon dioxide (CO2) and water (H2O) from the air and soil. Within the plant cell, the water is oxidized, meaning it loses electrons, while the carbon dioxide is reduced, meaning it gains electrons. ",
+          "contextAfter": " and the carbon dioxide into glucose. The plant then releases the oxygen back into the air, and stores energy within the glucose molecules."
+        }
+      ]
+    },
+    {
+      "id": "s9",
+      "topicId": "t1",
+      "subjectConceptId": "t1-carbon-dioxide",
+      "relation": "transforms into",
+      "objectConceptId": "t1-glucose",
+      "assertion": "Carbon dioxide is transformed into glucose during photosynthesis.",
+      "negated": false,
+      "conditions": [],
+      "role": "mechanism",
+      "evidence": [
+        {
+          "blockId": "block-1",
+          "quote": "carbon dioxide into glucose",
+          "contextBefore": "During photosynthesis, plants take in carbon dioxide (CO2) and water (H2O) from the air and soil. Within the plant cell, the water is oxidized, meaning it loses electrons, while the carbon dioxide is reduced, meaning it gains electrons. This transforms the water into oxygen and the ",
+          "contextAfter": ". The plant then releases the oxygen back into the air, and stores energy within the glucose molecules."
+        }
+      ]
+    },
+    {
+      "id": "s10",
+      "topicId": "t2",
+      "subjectConceptId": "t2-chloroplasts",
+      "relation": "store",
+      "objectConceptId": "t1-sunlight",
+      "assertion": "Chloroplasts store the energy of sunlight.",
+      "negated": false,
+      "conditions": [],
+      "role": "fact",
+      "evidence": [
+        {
+          "blockId": "block-2",
+          "quote": "chloroplasts, which store the energy of sunlight",
+          "contextBefore": "Inside the plant cell are small organelles called ",
+          "contextAfter": ". Within the thylakoid membranes of the chloroplast is a light-absorbing pigment called chlorophyll, which is responsible for giving the plant its green color. During photosynthesis, chlorophyll absorbs energy from blue- and red-light waves, and reflects green-light waves, making the plant appear green."
+        }
+      ]
+    },
+    {
+      "id": "s11",
+      "topicId": "t2",
+      "subjectConceptId": "t2-chlorophyll",
+      "relation": "is responsible for",
+      "objectConceptId": "t2-green-color",
+      "assertion": "Chlorophyll is responsible for giving the plant its green color.",
+      "negated": false,
+      "conditions": [],
+      "role": "fact",
+      "evidence": [
+        {
+          "blockId": "block-2",
+          "quote": "chlorophyll, which is responsible for giving the plant its green color",
+          "contextBefore": "Inside the plant cell are small organelles called chloroplasts, which store the energy of sunlight. Within the thylakoid membranes of the chloroplast is a light-absorbing pigment called ",
+          "contextAfter": ". During photosynthesis, chlorophyll absorbs energy from blue- and red-light waves, and reflects green-light waves, making the plant appear green."
+        }
+      ]
+    },
+    {
+      "id": "s12",
+      "topicId": "t2",
+      "subjectConceptId": "t2-chlorophyll",
+      "relation": "absorbs",
+      "objectConceptId": "t2-blue-red-light",
+      "assertion": "Chlorophyll absorbs energy from blue- and red-light waves during photosynthesis.",
+      "negated": false,
+      "conditions": [],
+      "role": "mechanism",
+      "evidence": [
+        {
+          "blockId": "block-2",
+          "quote": "chlorophyll absorbs energy from blue- and red-light waves",
+          "contextBefore": "Inside the plant cell are small organelles called chloroplasts, which store the energy of sunlight. Within the thylakoid membranes of the chloroplast is a light-absorbing pigment called chlorophyll, which is responsible for giving the plant its green color. During photosynthesis, ",
+          "contextAfter": ", and reflects green-light waves, making the plant appear green."
+        }
+      ]
+    },
+    {
+      "id": "s13",
+      "topicId": "t2",
+      "subjectConceptId": "t2-chlorophyll",
+      "relation": "reflects",
+      "objectConceptId": "t2-green-light",
+      "assertion": "Chlorophyll reflects green-light waves during photosynthesis.",
+      "negated": false,
+      "conditions": [],
+      "role": "mechanism",
+      "evidence": [
+        {
+          "blockId": "block-2",
+          "quote": "reflects green-light waves",
+          "contextBefore": "Inside the plant cell are small organelles called chloroplasts, which store the energy of sunlight. Within the thylakoid membranes of the chloroplast is a light-absorbing pigment called chlorophyll, which is responsible for giving the plant its green color. During photosynthesis, chlorophyll absorbs energy from blue- and red-light waves, and ",
+          "contextAfter": ", making the plant appear green."
+        }
+      ]
+    },
+    {
+      "id": "s14",
+      "topicId": "t3",
+      "subjectConceptId": "t3-light-dependent",
+      "relation": "takes place within",
+      "objectConceptId": "t2-thylakoid-membranes",
+      "assertion": "The light-dependent reaction takes place within the thylakoid membrane.",
+      "negated": false,
+      "conditions": [],
+      "role": "fact",
+      "evidence": [
+        {
+          "blockId": "block-3",
+          "quote": "The light-dependent reaction takes place within the thylakoid membrane",
+          "contextBefore": "While there are many steps behind the process of photosynthesis, it can be broken down into two major stages: light-dependent reactions and light-independent reactions. ",
+          "contextAfter": " and requires a steady stream of sunlight, hence the name light-*dependent* reaction. The chlorophyll absorbs energy from the light waves, which is converted into chemical energy in the form of the molecules ATP and NADPH. The light-independent stage, also known as the Calvin cycle, takes place in the stroma, the space between the thylakoid membranes and the chloroplast membranes, and does not require light, hence the name light-*independent* reaction. During this stage, energy from the ATP and NADPH molecules is used to assemble carbohydrate molecules, like glucose, from carbon dioxide."
+        }
+      ]
+    },
+    {
+      "id": "s15",
+      "topicId": "t3",
+      "subjectConceptId": "t3-light-dependent",
+      "relation": "requires",
+      "objectConceptId": "t1-sunlight",
+      "assertion": "The light-dependent reaction requires a steady stream of sunlight.",
+      "negated": false,
+      "conditions": [],
+      "role": "fact",
+      "evidence": [
+        {
+          "blockId": "block-3",
+          "quote": "requires a steady stream of sunlight",
+          "contextBefore": "While there are many steps behind the process of photosynthesis, it can be broken down into two major stages: light-dependent reactions and light-independent reactions. The light-dependent reaction takes place within the thylakoid membrane and ",
+          "contextAfter": ", hence the name light-*dependent* reaction. The chlorophyll absorbs energy from the light waves, which is converted into chemical energy in the form of the molecules ATP and NADPH. The light-independent stage, also known as the Calvin cycle, takes place in the stroma, the space between the thylakoid membranes and the chloroplast membranes, and does not require light, hence the name light-*independent* reaction. During this stage, energy from the ATP and NADPH molecules is used to assemble carbohydrate molecules, like glucose, from carbon dioxide."
+        }
+      ]
+    },
+    {
+      "id": "s16",
+      "topicId": "t3",
+      "subjectConceptId": "t3-light-independent",
+      "relation": "takes place in",
+      "objectConceptId": "t3-stroma",
+      "assertion": "The light-independent stage takes place in the stroma.",
+      "negated": false,
+      "conditions": [],
+      "role": "fact",
+      "evidence": [
+        {
+          "blockId": "block-3",
+          "quote": "The light-independent stage, also known as the Calvin cycle, takes place in the stroma",
+          "contextBefore": "While there are many steps behind the process of photosynthesis, it can be broken down into two major stages: light-dependent reactions and light-independent reactions. The light-dependent reaction takes place within the thylakoid membrane and requires a steady stream of sunlight, hence the name light-*dependent* reaction. The chlorophyll absorbs energy from the light waves, which is converted into chemical energy in the form of the molecules ATP and NADPH. ",
+          "contextAfter": ", the space between the thylakoid membranes and the chloroplast membranes, and does not require light, hence the name light-*independent* reaction. During this stage, energy from the ATP and NADPH molecules is used to assemble carbohydrate molecules, like glucose, from carbon dioxide."
+        }
+      ]
+    },
+    {
+      "id": "s17",
+      "topicId": "t3",
+      "subjectConceptId": "t3-light-independent",
+      "relation": "does not require",
+      "objectConceptId": "t1-sunlight",
+      "assertion": "The light-independent stage does not require light.",
+      "negated": true,
+      "conditions": [],
+      "role": "fact",
+      "evidence": [
+        {
+          "blockId": "block-3",
+          "quote": "does not require light",
+          "contextBefore": "While there are many steps behind the process of photosynthesis, it can be broken down into two major stages: light-dependent reactions and light-independent reactions. The light-dependent reaction takes place within the thylakoid membrane and requires a steady stream of sunlight, hence the name light-*dependent* reaction. The chlorophyll absorbs energy from the light waves, which is converted into chemical energy in the form of the molecules ATP and NADPH. The light-independent stage, also known as the Calvin cycle, takes place in the stroma, the space between the thylakoid membranes and the chloroplast membranes, and ",
+          "contextAfter": ", hence the name light-*independent* reaction. During this stage, energy from the ATP and NADPH molecules is used to assemble carbohydrate molecules, like glucose, from carbon dioxide."
+        }
+      ]
+    },
+    {
+      "id": "s18",
+      "topicId": "t3",
+      "subjectConceptId": "t3-atp-nadph",
+      "relation": "used to assemble",
+      "objectConceptId": "t1-glucose",
+      "assertion": "Energy from ATP and NADPH molecules is used to assemble carbohydrate molecules, like glucose, from carbon dioxide.",
+      "negated": false,
+      "conditions": [],
+      "role": "mechanism",
+      "evidence": [
+        {
+          "blockId": "block-3",
+          "quote": "energy from the ATP and NADPH molecules is used to assemble carbohydrate molecules, like glucose, from carbon dioxide",
+          "contextBefore": "While there are many steps behind the process of photosynthesis, it can be broken down into two major stages: light-dependent reactions and light-independent reactions. The light-dependent reaction takes place within the thylakoid membrane and requires a steady stream of sunlight, hence the name light-*dependent* reaction. The chlorophyll absorbs energy from the light waves, which is converted into chemical energy in the form of the molecules ATP and NADPH. The light-independent stage, also known as the Calvin cycle, takes place in the stroma, the space between the thylakoid membranes and the chloroplast membranes, and does not require light, hence the name light-*independent* reaction. During this stage, ",
+          "contextAfter": "."
+        }
+      ]
+    },
+    {
+      "id": "s19",
+      "topicId": "t4",
+      "subjectConceptId": "t4-c3",
+      "relation": "produces",
+      "objectConceptId": "t4-three-carbon",
+      "assertion": "C3 photosynthesis involves producing a three-carbon compound called 3-phosphoglyceric acid during the Calvin Cycle.",
+      "negated": false,
+      "conditions": [],
+      "role": "mechanism",
+      "evidence": [
+        {
+          "blockId": "block-4",
+          "quote": "It involves producing a three-carbon compound called 3-phosphoglyceric acid during the Calvin Cycle",
+          "contextBefore": "Not all forms of photosynthesis are created equal, however. There are different types of photosynthesis, including C3 photosynthesis and C4 photosynthesis. C3 photosynthesis is used by the majority of plants. ",
+          "contextAfter": ", which goes on to become glucose. C4 photosynthesis, on the other hand, produces a four-carbon intermediate compound, which splits into carbon dioxide and a three-carbon compound during the Calvin Cycle. A benefit of C4 photosynthesis is that by producing higher levels of carbon, it allows plants to thrive in environments without much light or water."
+        }
+      ]
+    },
+    {
+      "id": "s20",
+      "topicId": "t4",
+      "subjectConceptId": "t4-c4",
+      "relation": "produces",
+      "objectConceptId": "t4-four-carbon",
+      "assertion": "C4 photosynthesis produces a four-carbon intermediate compound.",
+      "negated": false,
+      "conditions": [],
+      "role": "mechanism",
+      "evidence": [
+        {
+          "blockId": "block-4",
+          "quote": "C4 photosynthesis, on the other hand, produces a four-carbon intermediate compound",
+          "contextBefore": "Not all forms of photosynthesis are created equal, however. There are different types of photosynthesis, including C3 photosynthesis and C4 photosynthesis. C3 photosynthesis is used by the majority of plants. It involves producing a three-carbon compound called 3-phosphoglyceric acid during the Calvin Cycle, which goes on to become glucose. ",
+          "contextAfter": ", which splits into carbon dioxide and a three-carbon compound during the Calvin Cycle. A benefit of C4 photosynthesis is that by producing higher levels of carbon, it allows plants to thrive in environments without much light or water."
+        }
+      ]
+    }
+  ],
+  "lessonSections": [
+    {
+      "topicId": "t1",
+      "summary": "Photosynthesis is crucial for life on Earth, carried out by plants, algae, and some bacteria, converting sunlight, water, and carbon dioxide into oxygen and glucose.",
+      "statementIds": [
+        "s1",
+        "s2",
+        "s3",
+        "s4",
+        "s5",
+        "s6",
+        "s7",
+        "s8",
+        "s9"
+      ],
+      "keyPoints": [
+        {
+          "text": "Life on Earth depends on photosynthesis, which produces oxygen and glucose.",
+          "statementIds": [
+            "s1",
+            "s4",
+            "s5"
+          ]
+        }
+      ]
+    },
+    {
+      "topicId": "t2",
+      "summary": "Chloroplasts and chlorophyll within plant cells capture sunlight and give plants their green appearance.",
+      "statementIds": [
+        "s10",
+        "s11",
+        "s12",
+        "s13"
+      ],
+      "keyPoints": [
+        {
+          "text": "Chlorophyll absorbs blue and red light and reflects green light.",
+          "statementIds": [
+            "s12",
+            "s13"
+          ]
+        }
+      ]
+    },
+    {
+      "topicId": "t3",
+      "summary": "Photosynthesis consists of light-dependent reactions in the thylakoid membrane and light-independent reactions (Calvin cycle) in the stroma.",
+      "statementIds": [
+        "s14",
+        "s15",
+        "s16",
+        "s17",
+        "s18"
+      ],
+      "keyPoints": [
+        {
+          "text": "Light-dependent reactions require sunlight, whereas the Calvin cycle occurs in the stroma without light.",
+          "statementIds": [
+            "s14",
+            "s15",
+            "s16",
+            "s17"
+          ]
+        }
+      ]
+    },
+    {
+      "topicId": "t4",
+      "summary": "Different types of photosynthesis include C3 and C4 photosynthesis, featuring distinct intermediate compounds.",
+      "statementIds": [
+        "s19",
+        "s20"
+      ],
+      "keyPoints": [
+        {
+          "text": "C3 photosynthesis produces 3-phosphoglyceric acid, and C4 produces a four-carbon intermediate.",
+          "statementIds": [
+            "s19",
+            "s20"
+          ]
+        }
+      ]
+    }
+  ]
+}

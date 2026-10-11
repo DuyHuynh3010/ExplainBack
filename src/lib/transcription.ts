@@ -12,6 +12,6 @@ export async function transcribeAudio(audioFile: File, signal?: AbortSignal): Pr
   });
   const body = await response.json().catch(() => null) as TranscriptionResponse | null;
   if (!response.ok || !body?.ok) throw new Error(body && !body.ok ? body.error.message : "Transcription failed. You can type your explanation instead.");
-  if (body.schemaVersion !== "1.0" || typeof body.data?.transcript !== "string" || !body.data.transcript.trim() || body.data.transcript.length > L.learnerCharacters || typeof body.data.language !== "string" || !Array.isArray(body.data.warnings) || !body.data.warnings.every(w => typeof w === "string") || !body.data.audio || !["audio/webm", "audio/wav", "audio/m4a"].includes(body.data.audio.mimeType) || !Number.isInteger(body.data.audio.bytes) || body.data.audio.bytes <= 0 || body.data.audio.bytes > L.audioBytes) throw new Error("The transcription service returned an invalid transcript.");
+  if (body.schemaVersion !== "2.0" || typeof body.data?.transcript !== "string" || !body.data.transcript.trim() || body.data.transcript.length > L.learnerCharacters || typeof body.data.language !== "string" || !Array.isArray(body.data.warnings) || !body.data.warnings.every(w => typeof w === "string") || !body.data.audio || !["audio/webm", "audio/wav", "audio/m4a"].includes(body.data.audio.mimeType) || !Number.isInteger(body.data.audio.bytes) || body.data.audio.bytes <= 0 || body.data.audio.bytes > L.audioBytes) throw new Error("The transcription service returned an invalid transcript.");
   return body.data;
 }

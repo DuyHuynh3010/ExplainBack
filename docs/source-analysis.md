@@ -1,5 +1,8 @@
 # ExplainBack - Source analysis (Block 3A)
 
+Current graph/API contract: [v2 migration and architecture](backend-contract-v2.md).
+
+
 ## Scope and end-to-end contract
 
 The intended learning flow is:
@@ -27,7 +30,7 @@ Node.js route, synchronous JSON operation, no file upload at this stage.
 ```ts
 // First call /api/sources using its existing JSON/multipart contract.
 const request: AnalyzeImportedSourceRequest = {
-  schemaVersion: "1.0",
+  schemaVersion: "2.0",
   importedSource: importResponse.data, // complete ImportedSource, never just an ID
   outputLanguage: "source", // optional: source (default), en, vi
 };
@@ -42,16 +45,16 @@ HTTP 200 uses `ApiResponse<SourceAnalysis>`:
 ```ts
 {
   ok: true,
-  schemaVersion: "1.0",
+  schemaVersion: "2.0",
   data: {
-    schemaVersion: "1.0",
+    schemaVersion: "2.0",
     id: /* backend-generated analysis UUID */,
     provenance: "analysis",
     document: /* unchanged importedSource.document */,
     graph: {
       id: /* graph UUID */, documentId: /* same document ID */, kind: "source",
       topics: /* topic IDs and titles */,
-      concepts: /* topic-local names, aliases and optional symbols */,
+      concepts: /* document-wide canonical names, aliases, document ownership and optional symbols */,
       statements: /* atomic directed assertions, polarity, conditions and evidence IDs */,
       evidence: /* original quotes, block IDs, verification and optional block-local offsets */
     },
@@ -132,8 +135,9 @@ without returning a partial graph. A second call cannot exceed the same output c
 
 One regeneration is allowed for malformed JSON, shape/reference/evidence/lesson-link
 errors. Repair sends the complete original block payload plus a controlled error
-label, never a raw SDK diagnostic or the previous untrusted output. Only exact
-structured concept/statement duplicates are remapped; there is no fuzzy name merging.
+label, precise paths/draft IDs and the previous draft as untrusted data, never raw SDK diagnostics.
+Only identical records with the same canonical concept ID merge; different IDs stay distinct.
+Exact duplicate statements are remapped without fuzzy name merging.
 Knowledge blocks must have an extracted supporting statement. Every input block
 must be accounted for, though this does not prove every semantic claim was extracted.
 
@@ -153,12 +157,13 @@ document/block IDs and contents are never regenerated, rewritten or repaired.
 Each graph collection has locally unique IDs; cross-graph statement references
 remain `{ graphId, statementId }` for future evaluation.
 
-AI supplies only `blockId`, verbatim `quote`, and optional exact contextBefore/After.
-Offsets and verification values supplied by AI are rejected. Backend searches the
-referenced block and computes UTF-16 `[start,end)` offsets. One matching occurrence
-is verified. Multiple matches without unique adjacent context remain **unverified**
-and have no arbitrary range; a warning names the block. Missing quotes/context fail
-the analysis and can trigger one repair. Quote occurrence does not prove entailment.
+AI supplies `blockId` and a verbatim `quote`. Offsets and verification supplied by AI
+are rejected. Optional legacy context hints are accepted but never required. Backend
+searches the block, computes UTF-16 `[start,end)` and derives up to 80 characters of
+adjacent context on each side. A unique occurrence ignores invalid hints. Repeated
+quotes use valid discriminating hints if available; unresolved ambiguity stays
+unverified without a fabricated range. Zero occurrences fail and may trigger repair.
+Empty optional contexts become absent. Verified quote location is not entailment.
 
 Coordinate systems stay distinct:
 
@@ -187,7 +192,7 @@ original structured objects, not terminal copies. OCR/layout recovery is unchang
 
 ## Errors
 
-All use `{ ok: false, schemaVersion: "1.0", error: { code, message, retryable } }`.
+All use `{ ok: false, schemaVersion: "2.0", error: { code, message, retryable } }`.
 Messages are controlled: no secret, source text, prompt or SDK stack is logged/returned.
 
 | HTTP | Code | Meaning |
@@ -232,6 +237,7 @@ and the remaining inconclusive schema/provider observations.
 Requires Node 22+ (native TypeScript Block 1 tests were verified with Node 24.13.1).
 
 ```powershell
+npx tsc -p tests/analysis/tsconfig.json
 node --test --test-isolation=none tests/contracts/validate.mjs
 node node_modules/typescript/bin/tsc -p tests/sources/tsconfig.json
 node --test --test-isolation=none tests/sources/ingest.mjs
@@ -258,9 +264,9 @@ For an actual local request, configure Gemini server environment, start `npm run
 then import and analyze in another PowerShell terminal:
 
 ```powershell
-$request = @{ schemaVersion = "1.0"; source = @{ kind = "text"; text = "Glucose stores chemical energy. Chlorophyll absorbs light energy." } } | ConvertTo-Json -Depth 5
+$request = @{ schemaVersion = "2.0"; source = @{ kind = "text"; text = "Glucose stores chemical energy. Chlorophyll absorbs light energy." } } | ConvertTo-Json -Depth 5
 $source = Invoke-RestMethod "http://localhost:3000/api/sources" -Method Post -ContentType "application/json; charset=utf-8" -Body ([Text.Encoding]::UTF8.GetBytes($request))
-$request = @{ schemaVersion = "1.0"; importedSource = $source.data; outputLanguage = "en" } | ConvertTo-Json -Depth 30
+$request = @{ schemaVersion = "2.0"; importedSource = $source.data; outputLanguage = "en" } | ConvertTo-Json -Depth 30
 $analysis = Invoke-RestMethod "http://localhost:3000/api/analysis" -Method Post -ContentType "application/json; charset=utf-8" -Body ([Text.Encoding]::UTF8.GetBytes($request))
 $analysis.data.graph
 $analysis.data.lessonSections

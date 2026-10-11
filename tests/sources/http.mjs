@@ -21,7 +21,7 @@ async function check(body, headers, status, code) {
 }
 
 test("production HTTP JSON source ingestion", async () => {
-  const result = await check(JSON.stringify({ schemaVersion: "1.0", source: { kind: "text", title: "Lesson", text: "  First.\r\n\r\nSecond.  " } }), { "content-type": "application/json" }, 200);
+  const result = await check(JSON.stringify({ schemaVersion: "2.0", source: { kind: "text", title: "Lesson", text: "  First.\r\n\r\nSecond.  " } }), { "content-type": "application/json" }, 200);
   assert.equal(result.data.normalizedText, "First.\n\nSecond.");
   assert.equal(result.data.document.blocks.length, 2);
 });
@@ -43,6 +43,6 @@ for (const [name, kind, status, code] of [
 });
 
 test("production HTTP invalid and oversized text return proper error statuses", async () => {
-  await check(JSON.stringify({ schemaVersion: "1.0", source: { kind: "text", text: "   " } }), { "content-type": "application/json" }, 400, "INVALID_REQUEST");
-  await check(JSON.stringify({ schemaVersion: "1.0", source: { kind: "text", text: "x".repeat(100_001) } }), { "content-type": "application/json" }, 413, "PAYLOAD_TOO_LARGE");
+  await check(JSON.stringify({ schemaVersion: "2.0", source: { kind: "text", text: "   " } }), { "content-type": "application/json" }, 400, "INVALID_REQUEST");
+  await check(JSON.stringify({ schemaVersion: "2.0", source: { kind: "text", text: "x".repeat(100_001) } }), { "content-type": "application/json" }, 413, "PAYLOAD_TOO_LARGE");
 });

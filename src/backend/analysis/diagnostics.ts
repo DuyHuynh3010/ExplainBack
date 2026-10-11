@@ -1,5 +1,38 @@
-import { appendFileSync, mkdirSync } from "node:fs";
+import { appendFileSync, mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
+import type { ImportedSource, SourceAnalysis } from "../contracts/domain";
+import type { AnalysisDraft } from "./draft";
+import type { DraftIssue } from "./errors";
+
+export interface AnalysisCapture {
+  call: number;
+  stage: string;
+  importedSource: ImportedSource;
+  outputText?: string;
+  draft?: AnalysisDraft;
+  normalized?: SourceAnalysis;
+  issues?: DraftIssue[];
+  code?: string;
+}
+export type CaptureAnalysis = (value: AnalysisCapture) => void;
+
+/** Explicit local opt-in only; artifacts contain source text, never SDK/key data. */
+export function createAnalysisCapture(requestId: string): CaptureAnalysis | undefined {
+  if (process.env.NODE_ENV !== "development" || process.env.EXPLAINBACK_ANALYSIS_CAPTURE !== "1") return;
+  return value => {
+    try {
+      const directory = join(process.cwd(), "test-results", "source-analysis-artifacts");
+      mkdirSync(directory, { recursive: true });
+      writeFileSync(join(directory, `${requestId}-call-${value.call}.json`), JSON.stringify(value, null, 2));
+    } catch { /* Capture failure must not change the API result. */ }
+  };
+}
+
+/** Console-safe metadata: no raw error message, document, quote or field values. */
+export function diagnosticIssues(issues: DraftIssue[]): NonNullable<AnalysisEvent["validationIssues"]> {
+  return issues.slice(0, 20).map(issue => ({ path: issue.path.slice(0, 300), rule: issue.code,
+    ...(issue.ids ? { ids: Object.fromEntries(Object.entries(issue.ids).filter(([key, value]) => /^[A-Za-z]+Id$/.test(key) && /^[A-Za-z0-9][A-Za-z0-9._:-]{0,159}$/.test(value))) } : {}) }));
+}
 
 /** Server-only metadata. Never pass source text, prompts, SDK errors or credentials. */
 export interface AnalysisEvent {
@@ -24,6 +57,7 @@ export interface AnalysisEvent {
   thoughtsTokens?: number;
   outputTokens?: number;
   quotaLimits?: { metric: string; id: string }[];
+  validationIssues?: { path: string; rule: DraftIssue["code"]; ids?: Record<string, string> }[];
 }
 export type AnalysisDiagnostic = (event: AnalysisEvent) => void;
 

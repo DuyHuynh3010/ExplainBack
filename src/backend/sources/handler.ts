@@ -45,7 +45,7 @@ export async function handleSourceRequest(request: Request): Promise<Response> {
         if (title === undefined) delete payload.source.title; else payload.source.title = title;
       }
       const validation = validateAnalyzeSourceRequest(payload);
-      if (!validation.valid || validation.value.source.kind !== "text") throw new SourceImportError("INVALID_REQUEST", 400, "JSON input must contain schemaVersion 1.0 and exactly one text source.");
+      if (!validation.valid || validation.value.source.kind !== "text") throw new SourceImportError("INVALID_REQUEST", 400, "JSON input must contain schemaVersion 2.0 and exactly one text source.");
       source = importText(validation.value.source.text, validation.value.source.title);
     } else {
       let form: FormData;
@@ -61,12 +61,12 @@ export async function handleSourceRequest(request: Request): Promise<Response> {
       source = await importFile(new Uint8Array(await file.arrayBuffer()), title);
     }
     if (!validateImportedSource(source).valid) throw new SourceImportError("SOURCE_IMPORT_FAILED", 500, "Imported source failed contract validation.");
-    const response: ImportSourceResponse = { ok: true, schemaVersion: "1.0", data: source };
+    const response: ImportSourceResponse = { ok: true, schemaVersion: "2.0", data: source };
     return Response.json(response, { status: 200, headers: { "cache-control": "no-store" } });
   } catch (error) {
     // Never log/return parser errors, stacks, or document contents.
     const safe = error instanceof SourceImportError ? error : new SourceImportError("SOURCE_IMPORT_FAILED", 500, "Source could not be imported.");
-    const response: ImportSourceResponse = { ok: false, schemaVersion: "1.0", error: { code: safe.code, message: safe.message, retryable: false } };
+    const response: ImportSourceResponse = { ok: false, schemaVersion: "2.0", error: { code: safe.code, message: safe.message, retryable: false } };
     return Response.json(response, { status: safe.status, headers: { "cache-control": "no-store" } });
   }
 }

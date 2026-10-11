@@ -13,6 +13,7 @@ function providerSchema(rule: AnalysisProviderRequest["schema"]): AnalysisProvid
   delete result.minItems;
   delete result.maxItems;
   if (rule.items) result.items = providerSchema(rule.items);
+  if (rule.anyOf) result.anyOf = rule.anyOf.map(providerSchema);
   if (rule.properties) result.properties = Object.fromEntries(Object.entries(rule.properties).map(([name, child]) => [name, providerSchema(child)]));
   return result;
 }

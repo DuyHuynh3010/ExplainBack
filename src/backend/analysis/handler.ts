@@ -1,6 +1,6 @@
 import type { AnalyzeSourceResponse } from "../contracts/api";
 import { randomUUID } from "node:crypto";
-import { createAnalysisDiagnostic, type AnalysisDiagnostic } from "./diagnostics";
+import { createAnalysisDiagnostic, createAnalysisCapture, type AnalysisDiagnostic } from "./diagnostics";
 import type { AnalysisProvider } from "./provider";
 import { AnalysisError } from "./errors";
 import { ANALYSIS_LIMITS } from "./limits";
@@ -35,15 +35,15 @@ export async function handleAnalysisRequest(request: Request, providerFactory: (
     // Validate before configuration/network, so invalid inputs never consume AI calls.
     const input = validateAnalysisInput(await readJson(request));
     diagnostic({ stage: "input_validation", validation: "passed" });
-    const data = await analyzeImportedSource(input, providerFactory(diagnostic), { diagnostic });
-    const body: AnalyzeSourceResponse = { ok: true, schemaVersion: "1.0", data };
+    const data = await analyzeImportedSource(input, providerFactory(diagnostic), { diagnostic, capture: createAnalysisCapture(requestId) });
+    const body: AnalyzeSourceResponse = { ok: true, schemaVersion: "2.0", data };
     diagnostic({ stage: "request_complete", validation: "passed" });
     return Response.json(body, { headers });
   } catch (error) {
     const safe = error instanceof AnalysisError ? error : new AnalysisError("ANALYSIS_FAILED", 500, "Source analysis could not be completed.");
     diagnostic({ stage: "request_failed", code: safe.code, retryAfterSeconds: safe.retryAfterSeconds });
     if (safe.retryAfterSeconds !== undefined) headers["retry-after"] = String(safe.retryAfterSeconds);
-    const body: AnalyzeSourceResponse = { ok: false, schemaVersion: "1.0", error: { code: safe.code, message: safe.message, retryable: safe.retryable } };
+    const body: AnalyzeSourceResponse = { ok: false, schemaVersion: "2.0", error: { code: safe.code, message: safe.message, retryable: safe.retryable } };
     return Response.json(body, { status: safe.status, headers });
   }
 }

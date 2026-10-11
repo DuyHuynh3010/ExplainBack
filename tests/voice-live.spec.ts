@@ -10,7 +10,7 @@ test("live voice: saved real source -> Chromium recording -> transcript edit -> 
   const saved = JSON.parse(await readFile("test-results/reference-graph-live-audit.json", "utf8"));
   const report = JSON.parse(await readFile("test-results/explanations-live-results.json", "utf8"));
   expect(report.calls).toBeLessThanOrEqual(2);
-  const ok = (data: unknown) => JSON.stringify({ ok: true, schemaVersion: "1.0", data });
+  const ok = (data: unknown) => JSON.stringify({ ok: true, schemaVersion: "2.0", data });
   // Reuse actual validated data, explicitly replayed; these are not new AI/source calls.
   await page.route("**/api/sources", r => r.fulfill({ contentType: "application/json", body: ok(saved.importedSource) }));
   await page.route("**/api/analysis", r => r.fulfill({ contentType: "application/json", body: ok(saved.analysis) }));
@@ -45,7 +45,7 @@ test("live voice: saved real source -> Chromium recording -> transcript edit -> 
   await expect(page.getByRole("article", { name: "Explanation feedback" })).toBeVisible();
   for (const topic of saved.analysis.graph.topics) {
     await page.getByLabel("Topic", { exact: true }).selectOption(topic.id);
-    const statement = saved.analysis.graph.statements.find((s: { topicId: string; relation: string }) => s.topicId === topic.id && s.relation === "stores");
+    const statement = saved.analysis.graph.statements.find((s: { topicId: string; representation: { kind: string; relation?: string } }) => s.topicId === topic.id && s.representation.kind === "binary" && s.representation.relation === "stores");
     if (statement) { await page.locator(".relationship-list").getByRole("button").filter({ hasText: statement.assertion }).click(); await expect(page.getByRole("article", { name: "Explanation feedback" })).toContainText("Contradicted"); await expect(page.getByRole("complementary", { name: "Source relationship details" })).toContainText("Glucose stores chemical energy."); }
   }
   await page.screenshot({ path: "test-results/live-voice-feedback.png", fullPage: true });

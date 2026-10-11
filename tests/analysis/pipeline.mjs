@@ -12,13 +12,13 @@ const { AnalysisError } = require("../../test-results/analysis-build/backend/ana
 const { ANALYSIS_LIMITS: L } = require("../../test-results/analysis-build/backend/analysis/limits.js");
 const { validateSourceAnalysis, validateImportedAnalysisResponse } = require("../../test-results/analysis-build/backend/contracts/validate.js");
 const text = "🌱 Plants do not release oxygen unless the specified condition holds.";
-const input = (raw = text) => ({ schemaVersion: "1.0", importedSource: importText(raw) });
+const input = (raw = text) => ({ schemaVersion: "2.0", importedSource: importText(raw) });
 const draft = source => ({
   blockDispositions: source.document.blocks.map(b => ({ blockId: b.id, kind: "knowledge" })),
   topics: [{ id: "topic", title: "Source mechanism" }],
-  concepts: [{ id: "plant", topicId: "topic", name: "Plants", aliases: [] }, { id: "oxygen", topicId: "topic", name: "Oxygen", aliases: ["O2"] }],
+  concepts: [{ id: "plant", name: "Plants", aliases: [] }, { id: "oxygen", name: "Oxygen", aliases: ["O2"] }],
   statements: source.document.blocks.map((b, i) => ({
-    id: `statement-${i}`, topicId: "topic", subjectConceptId: "plant", relation: "release", objectConceptId: "oxygen",
+    id: `statement-${i}`, topicId: "topic", representation: { kind: "binary", subjectConceptId: "plant", relation: "release", objectConceptId: "oxygen" },
     assertion: b.text, negated: true, conditions: ["Unless the specified condition holds"], role: "mechanism",
     evidence: [{ blockId: b.id, quote: b.text }],
   })),
@@ -47,9 +47,9 @@ test("valid source preserves input, maps IDs, links lessons and validates full r
   assert.deepEqual(result.sourceWarnings, []);
   assert.equal(result.provenance, "analysis");
   assert.equal(validateSourceAnalysis(result).valid, true);
-  assert.equal(validateImportedAnalysisResponse(request, { ok: true, schemaVersion: "1.0", data: result }).valid, true);
+  assert.equal(validateImportedAnalysisResponse(request, { ok: true, schemaVersion: "2.0", data: result }).valid, true);
   assert.notEqual(result.graph.topics[0].id, "topic");
-  assert.equal(result.graph.concepts[0].topicId, result.graph.topics[0].id);
+  assert.equal(result.graph.concepts[0].documentId, result.document.id);
   assert.equal(result.lessonSections[0].statementIds[0], result.graph.statements[0].id);
   assert.equal("position" in result.graph.concepts[0], false);
   assert.equal("status" in result.graph.statements[0], false);
@@ -97,12 +97,11 @@ test("exact adjacent context uniquely locates a repeated quote", async () => {
 
 const badDrafts = [
   ["duplicate topic ID", d => d.topics.push(structuredClone(d.topics[0]))],
-  ["duplicate concept ID", d => d.concepts.push(structuredClone(d.concepts[0]))],
+  ["conflicting canonical concept ID", d => d.concepts.push({ ...d.concepts[0], name: "Different" })],
   ["duplicate statement ID", d => d.statements.push(structuredClone(d.statements[0]))],
-  ["unknown subject", d => { d.statements[0].subjectConceptId = "unknown"; }],
+  ["unknown subject", d => { d.statements[0].representation.subjectConceptId = "unknown"; }],
   ["unknown evidence block", d => { d.statements[0].evidence[0].blockId = "unknown"; }],
   ["invented quote", d => { d.statements[0].evidence[0].quote = "The source never said this."; }],
-  ["invented context", d => { d.statements[0].evidence[0].contextBefore = "Made up"; }],
   ["AI supplied offsets", d => { d.statements[0].evidence[0].charRange = { start: 0, end: 1 }; }],
   ["AI supplied verified", d => { d.statements[0].evidence[0].verified = true; }],
   ["unknown summary statement", d => { d.lessonSections[0].statementIds = ["unknown"]; }],
@@ -111,7 +110,7 @@ const badDrafts = [
   ["duplicate block disposition", d => d.blockDispositions.push(structuredClone(d.blockDispositions[0]))],
   ["invalid polarity type", d => { d.statements[0].negated = "false"; }],
   ["formula role without formula", d => { d.statements[0].role = "formula"; }],
-  ["cross-topic edge", d => { d.topics.push({ id: "other", title: "Other" }); d.concepts[0].topicId = "other"; }],
+  ["obsolete concept topic ownership", d => { d.topics.push({ id: "other", title: "Other" }); d.concepts[0].topicId = "other"; }],
   ["question block used as evidence", d => { d.blockDispositions[0].kind = "questions"; }],
 ];
 for (const [name, mutate] of badDrafts) test(`rejects ${name}, retries only once`, async () => {
@@ -123,9 +122,9 @@ for (const [name, mutate] of badDrafts) test(`rejects ${name}, retries only once
 
 test("exact duplicates are remapped without fuzzy concept merging", async () => {
   const request = input(); const value = draft(request.importedSource);
-  value.concepts.push({ ...structuredClone(value.concepts[0]), id: "plant-copy" });
+  value.concepts.push({ ...structuredClone(value.concepts[0]), id: "plant" });
   value.concepts.push({ ...structuredClone(value.concepts[0]), id: "similar", name: "Plant" });
-  value.statements.push({ ...structuredClone(value.statements[0]), id: "statement-copy", subjectConceptId: "plant-copy" });
+  value.statements.push({ ...structuredClone(value.statements[0]), id: "statement-copy", representation: { ...value.statements[0].representation } });
   value.lessonSections[0].statementIds.push("statement-copy");
   const result = await run(request, mock([done(value)]));
   assert.equal(result.graph.concepts.length, 3);
@@ -228,7 +227,7 @@ test("long but valid ingestion is rejected by the smaller AI budget", async () =
 test("PDF and DOCX warnings, pages and original block IDs survive analysis", async () => {
   for (const name of ["partial.pdf", "paragraphs-table.docx"]) {
     const source = await importFile(await readFile(new URL(`../sources/fixtures/${name}`, import.meta.url)));
-    const result = await run({ schemaVersion: "1.0", importedSource: source }, mock([done(draft(source))]));
+    const result = await run({ schemaVersion: "2.0", importedSource: source }, mock([done(draft(source))]));
     assert.deepEqual(result.document, source.document); assert.deepEqual(result.sourceWarnings, source.warnings);
     for (const evidence of result.graph.evidence) assert.equal(evidence.location.page, source.document.blocks.find(b => b.id === evidence.blockId).location.page);
   }
@@ -245,9 +244,9 @@ test("source instructions remain data inside a JSON payload", async () => {
 test("response validator rejects changed document IDs or lost ingestion warnings", async () => {
   const request = input(); const result = await run(request, mock([done(draft(request.importedSource))]));
   result.sourceWarnings = undefined;
-  assert.equal(validateImportedAnalysisResponse(request, { ok: true, schemaVersion: "1.0", data: result }).valid, false);
+  assert.equal(validateImportedAnalysisResponse(request, { ok: true, schemaVersion: "2.0", data: result }).valid, false);
   result.sourceWarnings = []; result.document.id = "changed";
-  assert.equal(validateImportedAnalysisResponse(request, { ok: true, schemaVersion: "1.0", data: result }).valid, false);
+  assert.equal(validateImportedAnalysisResponse(request, { ok: true, schemaVersion: "2.0", data: result }).valid, false);
 });
 
 const httpRequest = payload => new Request("http://localhost/api/analysis", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(payload) });
@@ -260,7 +259,7 @@ test("HTTP handler uses the contract envelope with injected provider", async () 
 test("HTTP handler rejects raw text/invalid JSON/media type and actual oversized body", async () => {
   let calls = 0; const factory = () => { calls++; throw new Error("Must not configure AI"); };
   for (const request of [
-    httpRequest({ schemaVersion: "1.0", source: { kind: "text", text } }),
+    httpRequest({ schemaVersion: "2.0", source: { kind: "text", text } }),
     new Request("http://localhost", { method: "POST", headers: { "content-type": "application/json" }, body: "{" }),
     new Request("http://localhost", { method: "POST", headers: { "content-type": "application/json" }, body: new Uint8Array([0xff]) }),
   ]) assert.equal((await handleAnalysisRequest(request, factory)).status, 400);

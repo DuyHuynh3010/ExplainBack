@@ -5,8 +5,8 @@ import { mockAnalysis } from "./ui-source-fixture";
 import { toReferenceFlow } from "../src/lib/reference-graph";
 test.use({ baseURL: `http://localhost:${process.env.PLAYWRIGHT_PORT ?? "3000"}` });
 const sourceText = "Glucose stores energy. Glucose stores energy.\n\nChlorophyll absorbs light.";
-const success = (data: unknown) => JSON.stringify({ ok: true, schemaVersion: "1.0", data });
-const failure = JSON.stringify({ ok: false, schemaVersion: "1.0", error: { code: "AI_RATE_LIMITED", message: "Provider quota reached.", retryable: true } });
+const success = (data: unknown) => JSON.stringify({ ok: true, schemaVersion: "2.0", data });
+const failure = JSON.stringify({ ok: false, schemaVersion: "2.0", error: { code: "AI_RATE_LIMITED", message: "Provider quota reached.", retryable: true } });
 
 async function mockSource(page: Page) {
   await page.route("**/api/sources", route => {
@@ -40,7 +40,7 @@ test("mock: complete source session, topic/summary/evidence, preserved explanati
   await page.route("**/api/analysis", route => {
     analyses++;
     const body = route.request().postDataJSON();
-    expect(body.schemaVersion).toBe("1.0");
+    expect(body.schemaVersion).toBe("2.0");
     expect(body.importedSource.normalizedText).toBe(sourceText);
     expect(body.importedSource.originalSegments).toHaveLength(1);
     const analysis = mockAnalysis(body.importedSource);
@@ -280,7 +280,7 @@ test("adapter retains directed parallel edges, topic scope, neutral data and bac
   expect(flow.edges.every(e => !("status" in e.data!))).toBe(true);
   expect(analysis).toEqual(original);
   const loops = structuredClone(analysis.graph);
-  loops.statements = loops.statements.slice(0, 2).map(s => ({ ...s, objectConceptId: s.subjectConceptId }));
+  loops.statements = loops.statements.slice(0, 2).map(s => ({ ...s, representation: s.representation.kind === "binary" ? { ...s.representation, objectConceptId: s.representation.subjectConceptId } : s.representation }));
   const loopEdges = toReferenceFlow(loops, loops.topics[0].id).edges;
   expect(loopEdges.every(e => e.data!.selfLoop)).toBe(true);
   expect(loopEdges[0].data!.offset).not.toBe(loopEdges[1].data!.offset);

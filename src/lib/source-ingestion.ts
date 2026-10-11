@@ -28,7 +28,7 @@ export async function importLearningSource(
 
 function textRequest(text: string, title: string): string {
   return JSON.stringify({
-    schemaVersion: "1.0",
+    schemaVersion: "2.0",
     source: { kind: "text", ...(title.trim() ? { title: title.trim() } : {}), text },
   });
 }
