@@ -2,7 +2,7 @@
 import { useEffect, useRef, useState } from "react";
 import type { ImportedSource, SourceAnalysis } from "@/backend/contracts/domain";
 import { importLearningSource, type SourceInputPayload } from "./source-ingestion";
-import { analyzeLearningSource } from "./source-analysis";
+import { analyzeLearningSource, type AnalysisCheckpoint, type AnalysisProgress } from "./source-analysis";
 
 export type SourcePhase = "idle" | "importing" | "analyzing";
 
@@ -12,6 +12,8 @@ export function useSourceAnalysis() {
   const [analysis, setAnalysis] = useState<SourceAnalysis | null>(null);
   const [phase, setPhase] = useState<SourcePhase>("idle");
   const [error, setError] = useState("");
+  const [progress, setProgress] = useState<AnalysisProgress | null>(null);
+  const checkpoint = useRef<AnalysisCheckpoint>({ completedParts: [], callsUsed: 0 });
   const imported = useRef<ImportedSource | null>(null);
   const completed = useRef<SourceAnalysis | null>(null);
   const revision = useRef(0);
@@ -25,11 +27,13 @@ export function useSourceAnalysis() {
     active.current = null;
     setPhase("idle");
     setError("");
+    setProgress(null);
   }
   function invalidate() {
     cancel();
     imported.current = null;
     completed.current = null;
+    checkpoint.current = { completedParts: [], callsUsed: 0 };
     setImportedSource(null);
     setAnalysis(null);
   }
@@ -51,7 +55,11 @@ export function useSourceAnalysis() {
         setImportedSource(source);
       }
       setPhase("analyzing");
-      const result = await analyzeLearningSource(source, controller.signal);
+      const result = await analyzeLearningSource(source, controller.signal, {
+        checkpoint: checkpoint.current,
+        onCheckpoint: value => { if (current()) checkpoint.current = value; },
+        onProgress: value => { if (current()) setProgress(value); },
+      });
       if (!current()) return false;
       completed.current = result;
       setAnalysis(result);
@@ -63,5 +71,5 @@ export function useSourceAnalysis() {
       if (current()) { active.current = null; setPhase("idle"); }
     }
   }
-  return { importedSource, analysis, phase, error, run, cancel, invalidate };
+  return { importedSource, analysis, phase, error, progress, run, cancel, invalidate };
 }

@@ -16,6 +16,6 @@ export function ReferenceEdge({ id, sourceX, sourceY, targetX, targetY, label, d
   const labelY = data?.selfLoop ? sourceY - loopHeight * 0.75 : (sourceY + 2 * cy + targetY) / 4;
   return <>
     <BaseEdge id={id} path={path} markerEnd={markerEnd} style={{ ...style, strokeWidth: selected ? 3 : 1.8 }} />
-    <EdgeLabelRenderer><span className={`reference-edge-label ${selected ? "selected" : ""}`} style={{ transform: `translate(-50%, -50%) translate(${labelX}px,${labelY}px)` }}>{label}</span></EdgeLabelRenderer>
+    <EdgeLabelRenderer><span title={data?.assertion} className={`reference-edge-label ${selected ? "selected" : ""}`} style={{ transform: `translate(-50%, -50%) translate(${labelX}px,${labelY}px)` }}>{label}</span></EdgeLabelRenderer>
   </>;
 }

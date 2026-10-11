@@ -9,6 +9,7 @@ import { normalizeAnalysisDraft, isExplicitQuestionText } from "./normalize";
 import { buildAnalysisPrompt, ANALYSIS_SYSTEM_INSTRUCTION, type AnalysisRepair } from "./prompt";
 import type { AnalysisProvider, AnalysisProviderResponse } from "./provider";
 import { diagnosticIssues, type AnalysisDiagnostic, type CaptureAnalysis } from "./diagnostics";
+import { planStatementRepair, statementRepairPrompt, mergeStatementRepair, type StatementRepair } from "./statement-repair";
 
 export function validateAnalysisInput(input: unknown): AnalyzeImportedSourceRequest {
   const validation = validateAnalyzeImportedSourceRequest(input);
@@ -24,7 +25,7 @@ export function validateAnalysisInput(input: unknown): AnalyzeImportedSourceRequ
   return structuredClone(request);
 }
 
-async function callProvider(provider: AnalysisProvider, request: AnalyzeImportedSourceRequest, timeoutMs: number, repair?: AnalysisRepair, diagnostic?: AnalysisDiagnostic): Promise<AnalysisProviderResponse> {
+async function callProvider(provider: AnalysisProvider, request: AnalyzeImportedSourceRequest, timeoutMs: number, repair?: AnalysisRepair, diagnostic?: AnalysisDiagnostic, localRepair?: StatementRepair, scope?: AnalysisRunOptions["scope"]): Promise<AnalysisProviderResponse> {
   const controller = new AbortController();
   let timer: ReturnType<typeof setTimeout> | undefined;
   try {
@@ -33,22 +34,30 @@ async function callProvider(provider: AnalysisProvider, request: AnalyzeImported
         diagnostic?.({ stage: "call_timeout", timeoutOrigin: "pipeline", timeoutMs });
         controller.abort(); reject(new AnalysisError("AI_TIMEOUT", 504, "Source analysis timed out.", true));
       }, timeoutMs); }),
-      provider.generate({ systemInstruction: ANALYSIS_SYSTEM_INSTRUCTION, prompt: buildAnalysisPrompt(request, repair),
-        schema: ANALYSIS_DRAFT_SCHEMA, maxOutputTokens: L.outputTokens, signal: controller.signal }),
+      provider.generate({ systemInstruction: ANALYSIS_SYSTEM_INSTRUCTION + (scope?.systemInstruction ?? ""), prompt: localRepair ? statementRepairPrompt(request, localRepair) : scope ? scope.prompt(buildAnalysisPrompt(request, repair)) : buildAnalysisPrompt(request, repair),
+        schema: localRepair?.schema ?? scope?.schema ?? ANALYSIS_DRAFT_SCHEMA, maxOutputTokens: L.outputTokens, signal: controller.signal }),
     ]);
   } finally { if (timer) clearTimeout(timer); }
 }
 
-export interface AnalysisRunOptions { callTimeoutMs?: number; totalTimeoutMs?: number; retryDelayMs?: number; diagnostic?: AnalysisDiagnostic; capture?: CaptureAnalysis }
+export interface AnalysisRunOptions {
+  callTimeoutMs?: number; totalTimeoutMs?: number; retryDelayMs?: number;
+  diagnostic?: AnalysisDiagnostic; capture?: CaptureAnalysis; maxCalls?: number;
+  /** Server-created part context, never accepted directly from a public request. */
+  scope?: { blockIds: string[]; prompt: (base: string) => string; check: (draft: AnalysisDraft) => void; schema?: typeof ANALYSIS_DRAFT_SCHEMA; systemInstruction?: string };
+}
 /** Inject providers for tests; the HTTP route only creates the real Gemini provider. */
 export async function analyzeImportedSource(input: unknown, provider: AnalysisProvider, options: AnalysisRunOptions = {}): Promise<SourceAnalysis> {
   const request = validateAnalysisInput(input);
+  if (options.scope) request.importedSource.document.blocks = request.importedSource.document.blocks.filter(b => options.scope!.blockIds.includes(b.id));
   // Tests can shorten durations, never widen production ceilings or the call budget.
   const timeout = Math.max(1, Math.min(L.callTimeoutMs, options.callTimeoutMs ?? L.callTimeoutMs));
   const deadline = Date.now() + Math.max(1, Math.min(L.totalTimeoutMs, options.totalTimeoutMs ?? L.totalTimeoutMs));
   let repair: AnalysisRepair | undefined;
+  let localRepair: StatementRepair | undefined;
   const diagnostic = options.diagnostic;
-  for (let attempt = 0; attempt < L.maxCalls; attempt++) {
+  const maximum = Math.max(1, Math.min(L.maxCalls, options.maxCalls ?? L.maxCalls));
+  for (let attempt = 0; attempt < maximum; attempt++) {
     const started = Date.now();
     let stage = "call";
     let outputText: string | undefined, draft: AnalysisDraft | undefined, normalized: SourceAnalysis | undefined;
@@ -61,18 +70,19 @@ export async function analyzeImportedSource(input: unknown, provider: AnalysisPr
       const remaining = deadline - Date.now();
       if (remaining <= 0) throw new AnalysisError("AI_TIMEOUT", 504, "Source analysis timed out.", true);
       diagnostic?.({ stage: "call_start", call: attempt + 1, purpose: repair ? "repair" : "initial", timeoutMs: Math.min(timeout, remaining) });
-      const result = await callProvider(provider, request, Math.min(timeout, remaining), repair, diagnostic);
+      const result = await callProvider(provider, request, Math.min(timeout, remaining), repair, diagnostic, localRepair, options.scope);
       outputText = result.text;
       diagnostic?.({ stage: "call_result", call: attempt + 1, callElapsedMs: Date.now() - started, finishReason: result.finishReason, outputCharacters: result.text.length });
       if (result.finishReason === "truncated") throw new AnalysisError("AI_OUTPUT_TRUNCATED", 502, "AI output was truncated. No partial analysis was returned.");
       if (result.finishReason !== "stop") throw new AnalysisError("ANALYSIS_FAILED", 422, "AI did not complete a usable source analysis.");
       stage = "draft_validation";
-      draft = parseDraft(result.text);
+      draft = localRepair ? mergeStatementRepair(result.text, localRepair) : parseDraft(result.text);
+      options.scope?.check(draft);
       diagnostic?.({ stage, call: attempt + 1, validation: "passed" });
       stage = "domain_validation";
       const analysis = normalizeAnalysisDraft(request.importedSource, draft, candidate => { normalized = candidate; });
-      const bound = validateImportedAnalysisResponse(request, { ok: true, schemaVersion: "2.0", data: analysis });
-      if (!bound.valid) throw new DraftError("Analysis did not preserve the imported source and warnings.", bound.issues);
+      const bound = options.scope ? { valid: true } : validateImportedAnalysisResponse(request, { ok: true, schemaVersion: "2.0", data: analysis });
+      if (!bound.valid) throw new DraftError("Analysis did not preserve the imported source and warnings.", "issues" in bound ? bound.issues : []);
       diagnostic?.({ stage, call: attempt + 1, validation: "passed" });
       capture();
       return analysis;
@@ -87,8 +97,11 @@ export async function analyzeImportedSource(input: unknown, provider: AnalysisPr
         ...(stage !== "call" ? { validation: "failed" as const } : {}) });
       // Surface provider overload instead of retrying after 250ms or ignoring Retry-After.
       const mayRetry = safe instanceof DraftError;
-      if (!mayRetry || attempt + 1 === L.maxCalls) throw safe;
+      if (!mayRetry || attempt + 1 === maximum) throw safe;
       repair = safe instanceof DraftError ? { error: safe.message, issues: safe.issues.slice(0, 20), ...(draft ? { previousDraft: draft } : {}) } : undefined;
+      // Plan from all issues, not the console's truncated issue list: otherwise an
+      // unreported invalid statement could be lost or left unrepaired.
+      localRepair = safe instanceof DraftError && draft ? planStatementRepair(draft, safe.issues, request) : undefined;
       diagnostic?.({ stage: "repair_scheduled", call: attempt + 2, code: safe.code });
       const delay = Math.max(0, Math.min(L.retryDelayMs, options.retryDelayMs ?? L.retryDelayMs));
       if (Date.now() + delay >= deadline) throw new AnalysisError("AI_TIMEOUT", 504, "Source analysis timed out.", true);

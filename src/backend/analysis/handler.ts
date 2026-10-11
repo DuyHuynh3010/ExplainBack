@@ -6,6 +6,7 @@ import { AnalysisError } from "./errors";
 import { ANALYSIS_LIMITS } from "./limits";
 import { createGeminiProvider } from "./gemini";
 import { analyzeImportedSource, validateAnalysisInput } from "./pipeline";
+import { analyzeNextPart, validateSectionRequest, SectionFailure } from "./section-pipeline";
 
 async function readJson(request: Request): Promise<unknown> {
   if (request.headers.get("content-type")?.split(";")[0].trim().toLowerCase() !== "application/json") throw new AnalysisError("UNSUPPORTED_SOURCE", 415, "Analysis requires application/json with the full ImportedSource.");
@@ -33,7 +34,15 @@ export async function handleAnalysisRequest(request: Request, providerFactory: (
   const headers: Record<string, string> = { "cache-control": "no-store", "x-request-id": requestId };
   try {
     // Validate before configuration/network, so invalid inputs never consume AI calls.
-    const input = validateAnalysisInput(await readJson(request));
+    const raw = await readJson(request);
+    if (raw && typeof raw === "object" && Object.hasOwn(raw, "processing")) {
+      const state = validateSectionRequest(raw);
+      diagnostic({ stage: "input_validation", validation: "passed" });
+      const result = await analyzeNextPart(state, providerFactory(diagnostic), diagnostic, createAnalysisCapture(requestId));
+      diagnostic({ stage: "request_complete", validation: "passed" });
+      return Response.json({ ok: true, schemaVersion: "2.0", data: result.data, processing: { callsUsed: result.callsUsed } }, { headers });
+    }
+    const input = validateAnalysisInput(raw);
     diagnostic({ stage: "input_validation", validation: "passed" });
     const data = await analyzeImportedSource(input, providerFactory(diagnostic), { diagnostic, capture: createAnalysisCapture(requestId) });
     const body: AnalyzeSourceResponse = { ok: true, schemaVersion: "2.0", data };
@@ -44,6 +53,6 @@ export async function handleAnalysisRequest(request: Request, providerFactory: (
     diagnostic({ stage: "request_failed", code: safe.code, retryAfterSeconds: safe.retryAfterSeconds });
     if (safe.retryAfterSeconds !== undefined) headers["retry-after"] = String(safe.retryAfterSeconds);
     const body: AnalyzeSourceResponse = { ok: false, schemaVersion: "2.0", error: { code: safe.code, message: safe.message, retryable: safe.retryable } };
-    return Response.json(body, { status: safe.status, headers });
+    return Response.json({ ...body, ...(safe instanceof SectionFailure ? { processing: { callsUsed: safe.callsUsed } } : {}) }, { status: safe.status, headers });
   }
 }

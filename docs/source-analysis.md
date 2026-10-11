@@ -2,6 +2,10 @@
 
 Current graph/API contract: [v2 migration and architecture](backend-contract-v2.md).
 
+For the implemented multi-section sequential web flow, checkpoint protocol and limits,
+see [topic processing](topic-processing.md). The single-call route described below
+remains supported; the web client opts into section processing when needed.
+
 
 ## Scope and end-to-end contract
 
@@ -133,9 +137,14 @@ return 413 without silently truncating it. Input/collection size ceilings are no
 token guarantees. A model can still reach its output-token limit; MAX_TOKENS fails
 without returning a partial graph. A second call cannot exceed the same output cap.
 
-One regeneration is allowed for malformed JSON, shape/reference/evidence/lesson-link
-errors. Repair sends the complete original block payload plus a controlled error
-label, precise paths/draft IDs and the previous draft as untrusted data, never raw SDK diagnostics.
+One repair is allowed for malformed JSON, shape/reference/evidence/lesson-link errors.
+Known statement failures use a local patch: only failed claims, their original blocks,
+the canonical concept catalog and affected lessons are sent. Statement/topic IDs and
+good claims remain unchanged; concept rewrites, claim removal and lost lesson links
+are rejected. The merged extraction is fully revalidated. Errors that cannot identify
+claims (for example malformed JSON/global structure) retain complete regeneration with
+the original blocks, controlled errors and previous draft when available. Raw SDK
+diagnostics are never sent.
 Only identical records with the same canonical concept ID merge; different IDs stay distinct.
 Exact duplicate statements are remapped without fuzzy name merging.
 Knowledge blocks must have an extracted supporting statement. Every input block

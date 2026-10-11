@@ -30,7 +30,8 @@ function checkFlow(graph) {
         assert.equal(edge.source, `${graph.id}:${statement.representation.subjectConceptId}`);
         assert.equal(edge.target, `${graph.id}:${statement.representation.objectConceptId}`);
         assert.equal(edge.data.statementId, statement.id);
-        assert.equal(edge.label, `${statement.negated ? "not " : ""}${statement.representation.relation}`);
+        assert.ok(edge.label.startsWith(`${statement.negated ? "not " : ""}${statement.representation.relation}`));
+        for (const condition of statement.conditions) assert.ok(edge.label.includes(condition));
         assert.equal(edge.markerEnd.type, "arrowclosed");
         assert.ok(nodes.has(edge.source)); assert.ok(nodes.has(edge.target));
       }

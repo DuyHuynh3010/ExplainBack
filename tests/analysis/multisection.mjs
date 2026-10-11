@@ -99,10 +99,11 @@ test("literal wrong stores endpoint fails, alias/coreference and genuine self-lo
 });
 test("specific repair issues preserve IDs; final validation and private diagnostic captures remain bounded", async () => {
   const { imported, draft } = fixture(), bad = structuredClone(draft); bad.statements[2].representation.objectConceptId = "c0";
-  const p = provider([bad, draft]), captures = [], events = [];
+  const patch = { concepts: [], statements: [draft.statements[2]], lessonSections: draft.lessonSections.filter(s => s.topicId === draft.statements[2].topicId) };
+  const p = provider([bad, patch]), captures = [], events = [];
   await analyzeImportedSource({ schemaVersion: "2.0", importedSource: imported }, p, { retryDelayMs: 0, capture: c => captures.push(c), diagnostic: e => events.push(e) });
   assert.equal(p.calls.length, 2); const repair = JSON.parse(p.calls[1].prompt).repair;
-  assert.deepEqual(repair.previousDraft, bad); assert.equal(repair.issues[0].ids.statementId, "stores");
+  assert.equal(repair.previousDraft, undefined); assert.deepEqual(repair.statements, [bad.statements[2]]); assert.equal(repair.issues[0].ids.statementId, "stores");
   assert.ok(repair.issues[0].path.includes("representation.objectConceptId")); assert.ok(captures[1].normalized);
   assert.ok(!JSON.stringify(events).includes(globalSource));
   const prev = process.env.EXPLAINBACK_ANALYSIS_CAPTURE;

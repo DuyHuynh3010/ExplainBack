@@ -14,11 +14,12 @@ if (statePath) {
     let state;
     try {
       state = JSON.parse(fs.readFileSync(statePath, "utf8"));
-      if (state.stopped || state.calls >= 4) throw new Error("Live diagnostic generation budget exhausted or stopped by quota.");
+      const maximum = Number.isInteger(state.maxCalls) && state.maxCalls > 0 && state.maxCalls <= 8 ? state.maxCalls : 4;
+      if (state.stopped || state.calls >= maximum) throw new Error("Live diagnostic generation budget exhausted or stopped by provider error.");
       state.calls++; fs.writeFileSync(statePath, JSON.stringify(state));
       const started = Date.now(), response = await transport(url, options);
       const body = await response.clone().json().catch(() => null);
-      if (response.status === 429) { state.stopped = true; fs.writeFileSync(statePath, JSON.stringify(state)); }
+      if (response.status === 429 || (!response.ok && state.stopOnProviderError)) { state.stopped = true; fs.writeFileSync(statePath, JSON.stringify(state)); }
       // Only successful candidate content and whitelisted quota fields are captured.
       const artifact = { call: state.calls, status: response.status, elapsedMs: Date.now() - started,
         retryAfter: response.headers.get("retry-after"),

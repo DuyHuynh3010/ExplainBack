@@ -273,7 +273,7 @@ test("adapter retains directed parallel edges, topic scope, neutral data and bac
   expect(flow.edges).toHaveLength(4);
   expect(new Set(flow.edges.map(e => e.id)).size).toBe(4);
   expect(new Set(flow.edges.slice(0, 3).map(e => e.data!.offset)).size).toBe(3);
-  expect(flow.edges.find(e => e.label === "not retains")).toBeTruthy();
+  expect(flow.edges.find(e => e.label === "not retains · Under the stated source condition")).toBeTruthy();
   const reverse = flow.edges.find(e => e.label === "returns to")!;
   expect(reverse.source).toBe(flow.edges[0].target);
   expect(reverse.target).toBe(flow.edges[0].source);
