@@ -50,7 +50,7 @@ test("synthetic: normalization preserves the stores target and both produced obj
     const before = structuredClone(draft);
     const analysis = normalizeAnalysisDraft(source, parseDraft(JSON.stringify(draft)));
     assert.deepEqual(canonical(triples(analysis.graph)), canonical(expectedEndpoints));
-    assert.equal(analysis.graph.concepts.length, 6); // Only the exact energy duplicate is merged.
+    assert.equal(analysis.graph.concepts.length, 7); // Duplicate records remain separate; references use the first explicit ID.
     assert.equal(analysis.graph.statements.length, 4);
     assert.equal(validateSourceAnalysis(analysis).valid, true);
     assert.deepEqual(draft, before);
@@ -58,11 +58,16 @@ test("synthetic: normalization preserves the stores target and both produced obj
   }
 });
 
-test("synthetic: missing object concept fails instead of being redirected to the process", () => {
+test("synthetic: missing object concept keeps an assertion card without redirecting to the process", () => {
   const source = importText(endpointSource);
   const draft = endpointDraft(source);
   draft.concepts = draft.concepts.filter(c => c.name !== "Chemical energy");
-  assert.throws(() => normalizeAnalysisDraft(source, draft), e => e.code === "AI_OUTPUT_INVALID");
+  const graph = normalizeAnalysisDraft(source, draft).graph;
+  const statement = graph.statements.find(s => s.assertion.includes("stores"));
+  assert.equal(statement.representation.kind, "complex");
+  assert.equal(statement.assertion, draft.statements.find(s => s.assertion.includes("stores")).assertion);
+  assert.ok(statement.representation.participants.every(p => graph.concepts.find(c => c.id === p.conceptId).name !== "Photosynthesis"));
+  checkFlow(graph);
 });
 
 test("synthetic: parallel/reverse statements and reordered concepts keep distinct endpoints and labels", () => {

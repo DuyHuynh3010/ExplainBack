@@ -14,7 +14,7 @@ export interface ExplorerFlow { nodes: ReferenceNode[]; edges: ReferenceEdge[]; 
 // only the selected statement subset; stable IDs still refer to original graphs.
 function flowFor(graph: KnowledgeGraph, statements: Statement[]) {
   const view = { ...graph, statements: statements.map(s => ({ ...s, topicId: "view" })) };
-  return toReferenceFlow(view, "view");
+  return toReferenceFlow(view, "view", { includeIsolated: !graph.statements.length });
 }
 /** Cached source scope only; shared concepts retain their document-wide IDs. */
 export function toLessonFlow(graph: KnowledgeGraph, topicId: string): ExplorerFlow {

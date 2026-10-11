@@ -8,7 +8,7 @@ const {importText}=load("backend/sources/ingest");
 const {normalizeAnalysisDraft}=load("backend/analysis/normalize");
 const {normalizeEvaluation,handleEvaluationRequest}=load("backend/explanations/evaluation");
 const {sanitizeUnsupportedConceptAlignments}=load("backend/explanations/alignment-sanitization");
-const {validateEvaluateTextResponse}=load("backend/contracts/validate");
+const {validateEvaluateTextResponse,validateDisplayEvaluateTextResponse}=load("backend/contracts/validate");
 const {toComparisonFlow,ALL_TOPICS}=load("lib/comparison-graph");
 const {createEvaluationCapture}=load("backend/analysis/diagnostics");
 const dir=".explainback-artifacts/alignment-sanitization";
@@ -59,26 +59,33 @@ test("multiple mappings remove only unsupported ones; sanitizer does not mutate 
   assert.equal(sanitized.evaluation.learnerGraph,valid.learnerGraph);assert.equal(sanitized.evaluation.comparisons,valid.comparisons);assert.equal(sanitized.evaluation.learnerDocument,valid.learnerDocument);
   assert.deepEqual(valid,before);assert.equal(validateEvaluateTextResponse(input,{ok:true,schemaVersion:"2.0",data:sanitized.evaluation}).valid,true);
 });
-test("unknown learner/source alignment IDs and duplicate IDs remain blocking; not sanitized as unsupported",async()=>{
+test("unknown alignment IDs are removed and duplicate mappings keep the supported candidate without repair",async()=>{
   const {input,draft,alignment}=fixture();
   for(const invalid of [[{...alignment("s0"),learnerConceptId:"unknown"}],[{...alignment("s0"),referenceConceptId:"unknown"}],[alignment("s0"),alignment("s0","s1")]]){
-    const d={...draft,conceptAlignments:invalid};assert.throws(()=>normalize(input,d));
-    const r=await run(input,d,{});assert.equal(r.response.status,502);assert.equal(r.calls,2);assert.ok(r.body.error.details.length);
+    const d={...draft,conceptAlignments:invalid};
+    const r=await run(input,d,{});assert.equal(r.response.status,200);assert.equal(r.calls,1);
+    assert.equal(r.body.data.conceptAlignments.length,invalid.length===2?1:0);
+    assert.equal(validateDisplayEvaluateTextResponse(input,r.body).valid,true);
   }
 });
-test("mandatory claim/reference/evidence errors still block; no third generation",async()=>{
+test("claim endpoint/polarity/evidence quality defects keep assertions and do not trigger repair",async()=>{
   const {input,draft,alignment}=fixture();
   for(const change of [d=>d.claims[0].quote="Fabricated quote.",d=>d.claims[0].representation.objectConceptId="unknown",d=>d.claims[0].negated=true]){
     const d=structuredClone(draft);d.conceptAlignments=[alignment("s0","s1")];change(d);
-    const r=await run(input,d,{});assert.equal(r.response.status,502);assert.ok(r.calls<=2);assert.ok(r.body.error.details.length);
+    const r=await run(input,d,{});assert.equal(r.response.status,200);assert.equal(r.calls,1);
+    assert.deepEqual(r.body.data.learnerGraph.statements.map(s=>s.assertion),d.claims.map(c=>c.assertion));
+    assert.equal(validateDisplayEvaluateTextResponse(input,r.body).valid,true);
   }
 });
-test("post-repair unsupported suggestion is sanitized, while full mandatory coverage is validated again",async()=>{
+test("incomplete comparison coverage returns unchanged claims without requesting a patch",async()=>{
   const {input,draft,alignment}=fixture("network"),initial=structuredClone(draft);initial.comparisons.pop();
   const patch={comparisons:draft.comparisons,additionalIdeas:[],conceptAlignments:[alignment("s0","s1")]};
-  const r=await run(input,initial,patch);assert.equal(r.response.status,200);assert.equal(r.calls,2);assert.deepEqual(r.body.data.conceptAlignments,[]);
-  assert.equal(validateEvaluateTextResponse(input,r.body).valid,true);
-  const bad=await run(input,initial,{...patch,comparisons:initial.comparisons});assert.equal(bad.response.status,502);assert.equal(bad.calls,2);
+  const r=await run(input,initial,patch);assert.equal(r.response.status,200);assert.equal(r.calls,1);assert.deepEqual(r.body.data.conceptAlignments,[]);
+  assert.equal(validateDisplayEvaluateTextResponse(input,r.body).valid,true);
+  assert.equal(r.body.data.learnerGraph.statements.length,initial.claims.length);
+  assert.equal(r.body.data.comparisons.length,initial.comparisons.length);
+  const flow=toComparisonFlow(input.sourceAnalysis.graph,r.body.data,ALL_TOPICS);
+  assert.ok(flow.details.some(d=>d.learner.length&&!d.comparison));
 });
 test("complex participant identity remains supported after remap",()=>{
   const {input,draft,alignment}=fixture();

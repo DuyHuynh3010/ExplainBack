@@ -12,6 +12,7 @@ const { handleTranscriptionRequest } = require("../../test-results/analysis-buil
 const { inspectAudio } = require("../../test-results/analysis-build/backend/explanations/audio.js");
 const { createGeminiProvider } = require("../../test-results/analysis-build/backend/analysis/gemini.js");
 const { AnalysisError } = require("../../test-results/analysis-build/backend/analysis/errors.js");
+const { validateDisplayEvaluateTextResponse } = require("../../test-results/analysis-build/backend/contracts/validate.js");
 const { toEvaluatedFlow } = require("../../test-results/analysis-build/lib/evaluated-graph.js");
 const { toReferenceFlow } = require("../../test-results/analysis-build/lib/reference-graph.js");
 const importedSource = importText(endpointSource);
@@ -97,10 +98,10 @@ test("additional idea is stored separately without incorrect status", () => {
   const text = "Plants look beautiful."; const d = draft("missing", []); d.claims = [claim(text)]; d.additionalIdeas = [{ learnerClaimIds: ["c1"], explanation: "Not addressed by the source." }];
   const result = normalizeEvaluation(input(text), JSON.stringify(d)); assert.equal(result.additionalIdeas.length, 1); assert.equal(result.additionalIdeas[0].status, undefined);
 });
-test("ambiguous repeated quote becomes uncertain without invented range", () => {
+test("ambiguous repeated quote keeps the AI verdict without inventing a range", () => {
   const text = "Sugar is made. Sugar is made.";
   const result = normalizeEvaluation(input(text), JSON.stringify(draft("correct", [claim("Sugar is made.")])));
-  assert.equal(result.comparisons[0].status, "uncertain"); assert.equal(result.learnerGraph.evidence[0].location, undefined);
+  assert.equal(result.comparisons[0].status, "correct"); assert.equal(result.learnerGraph.evidence[0].verification, "unverified"); assert.equal(result.learnerGraph.evidence[0].location, undefined);
 });
 test("quote context disambiguates occurrences and preserves UTF-16 offsets", () => {
   const text = "🌱 Sugar is made. Sugar is made.";
@@ -108,7 +109,19 @@ test("quote context disambiguates occurrences and preserves UTF-16 offsets", () 
   assert.equal(result.comparisons[0].status, "correct"); assert.equal(result.learnerGraph.evidence[0].location.charRange.start, 3);
 });
 for (const [name, change] of [["fabricated quote", d => d.claims[0].quote = "invented"], ["unknown reference", d => d.comparisons[0].referenceRelationshipId = "wrong"], ["wrong topic", d => d.claims[0].topicId = "wrong"], ["duplicate claim", d => d.claims.push(d.claims[0])], ["missing with learner quote", d => d.comparisons[0].status = "missing"], ["uncovered source relationship", d => d.comparisons.pop()], ["unknown learner claim", d => d.comparisons[0].learnerClaimIds = ["unknown"]], ["unknown additional field", d => d.score = 100], ["claim double counted", d => d.additionalIdeas = [{ learnerClaimIds: ["c1"], explanation: "extra" }]]]) {
-  test(`evaluation rejects ${name}`, () => { const text = "Photosynthesis produces glucose."; const d = draft("correct", [claim(text)]); change(d); assert.throws(() => normalizeEvaluation(input(text), JSON.stringify(d)), e => e.code === "AI_OUTPUT_INVALID"); });
+  test(`evaluation normalizes ${name} without losing learner claims`, () => {
+    const text = "Photosynthesis produces glucose.", request = input(text), d = draft("correct", [claim(text)]); change(d);
+    const result = normalizeEvaluation(request, JSON.stringify(d));
+    assert.equal(validateDisplayEvaluateTextResponse(request, { ok: true, schemaVersion: "2.0", data: result }).valid, true);
+    assert.deepEqual(result.learnerGraph.statements.map(s => s.assertion), d.claims.map(c => c.assertion));
+    assert.equal(new Set(result.learnerGraph.statements.map(s => s.id)).size, d.claims.length);
+    if (name === "fabricated quote") {
+      assert.equal(result.learnerGraph.evidence[0].quote, "invented"); assert.equal(result.learnerGraph.evidence[0].verification, "unverified");
+      assert.equal(result.learnerGraph.evidence[0].location, undefined); assert.equal(result.comparisons[0].status, "correct");
+    }
+    if (name === "unknown reference" || name === "unknown learner claim") assert.ok(!result.comparisons.some(c => c.referenceRelationshipId === sourceAnalysis.graph.statements[0].id));
+    if (name === "claim double counted") assert.deepEqual(result.additionalIdeas, []);
+  });
 }
 test("evaluation preserves conditions and erroneous claims rather than correcting them", () => {
   const text = "Photosynthesis does not produce glucose unless it is dark.";
@@ -124,9 +137,11 @@ test("endpoint requires full matching ingestion and never reanalyses source", as
   const mismatch = structuredClone(body); mismatch.importedSource.document.id = "wrong"; assert.throws(() => validateEvaluationInput(mismatch));
 });
 test("evaluation truncation and provider failures never trigger repair/retry", async () => {
-  for (const result of [new AnalysisError("UPSTREAM_UNAVAILABLE", 503, "Unavailable.", true), { text: "{}", finishReason: "truncated" }]) {
+  for (const result of [new AnalysisError("UPSTREAM_UNAVAILABLE", 503, "Unavailable.", true), { text: JSON.stringify(draft("correct", [claim("Example.")])), finishReason: "truncated" }]) {
     const p = { calls: 0, async generate() { this.calls++; if (result instanceof Error) throw result; return result; } };
-    const r = await handleEvaluationRequest(jsonRequest(input("Example.")), p); assert.equal(p.calls, 1); assert.ok([502, 503].includes(r.status));
+    const r = await handleEvaluationRequest(jsonRequest(input("Example.")), p); assert.equal(p.calls, 1);
+    assert.equal(r.status, result instanceof Error ? 503 : 200);
+    if (!(result instanceof Error)) assert.equal((await r.json()).data.learnerGraph.statements[0].assertion, "Example.");
   }
 });
 test("evaluation graph adapter overlays status without changing source identity or endpoints", () => {

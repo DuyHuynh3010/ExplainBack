@@ -1,5 +1,11 @@
 # Graph contract v2: document-wide concepts and statement views
 
+Current runtime acceptance: [nonblocking graph output](nonblocking-output.md).
+The field structure remains v2, but incomplete evidence/participants/comparison
+coverage are renderable. Strict quality checks, exact-content deduplication, UUID
+generation and bounded repair described below belong to the earlier implementation;
+the linked page defines current normalization and deterministic IDs.
+
 The [frontend visualization update](graph-visualization.md) renders complex
 statements as relation nodes with role connections. It preserves this domain
 contract and the original statement-based evaluation counts.

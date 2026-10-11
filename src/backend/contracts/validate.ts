@@ -575,3 +575,88 @@ export function validateEvaluateTextResponse(requestInput: unknown, input: unkno
   }
   return result(input, issues);
 }
+
+/** Runtime display contract: shape and resolvable graph links, not AI quality.
+ * Historical semantic validators above remain available for offline diagnostics.
+ * There is no runtime strict/lenient setting or UI mode.
+ */
+function displayRule(rule: Rule): Rule {
+  if (rule.type === "array") return { ...rule, min: 0, max: undefined, item: displayRule(rule.item) };
+  if (rule.type === "object") return { ...rule, fields: Object.fromEntries(Object.entries(rule.fields).map(([k, v]) => [k, displayRule(v)])) };
+  if (rule.type === "union") return { ...rule, options: rule.options.map(displayRule) };
+  if (rule.type === "string" && !rule.id) return { ...rule, allowEmpty: true };
+  return rule;
+}
+function checkDisplayGraph(graph: KnowledgeGraph, issues: ValidationIssue[], path: string) {
+  const topics = new Set(graph.topics.map(t => t.id)), concepts = new Set(graph.concepts.map(c => c.id)), evidence = new Set(graph.evidence.map(e => e.id));
+  for (const field of ["topics", "concepts", "statements", "evidence"] as const) unique(graph[field].map(x => x.id), `${path}.${field}`, issues);
+  graph.statements.forEach((s, i) => {
+    exists(s.topicId, topics, `${path}.statements[${i}].topicId`, issues);
+    referencedConceptIds(s.representation).forEach(id => exists(id, concepts, `${path}.statements[${i}].representation`, issues));
+    s.evidenceIds.forEach(id => exists(id, evidence, `${path}.statements[${i}].evidenceIds`, issues));
+  });
+}
+export function validateDisplaySourceAnalysis(input: unknown): ValidationResult<SourceAnalysis> {
+  const issues: ValidationIssue[] = [];
+  shape(input, displayRule(analysisRule), "$", issues);
+  if (!issues.length) {
+    const source = input as SourceAnalysis;
+    checkDisplayGraph(source.graph, issues, "$.graph");
+    if (source.graph.documentId !== source.document.id || source.graph.kind !== "source") issue(issues, "$.graph", "reference", "Wrong source graph/document identity.");
+    const topics = new Set(source.graph.topics.map(t => t.id)), statements = new Set(source.graph.statements.map(s => s.id));
+    source.lessonSections.forEach((s, i) => {
+      exists(s.topicId, topics, `$.lessonSections[${i}].topicId`, issues);
+      [...s.statementIds, ...s.keyPoints.flatMap(p => p.statementIds)].forEach(id => exists(id, statements, `$.lessonSections[${i}]`, issues));
+    });
+  }
+  return result(input, issues);
+}
+export function validateDisplayImportedAnalysisResponse(requestInput: unknown, input: unknown): ValidationResult<AnalyzeSourceResponse> {
+  const request = validateAnalyzeImportedSourceRequest(requestInput), issues: ValidationIssue[] = request.valid ? [] : [...request.issues];
+  shape(input, responseRule(input, displayRule(analysisRule)), "$", issues);
+  if (!issues.length && request.valid && (input as AnalyzeSourceResponse).ok) {
+    const source = (input as { data: SourceAnalysis }).data, validation = validateDisplaySourceAnalysis(source);
+    if (!validation.valid) issues.push(...validation.issues);
+    if (canonicalJson(source.document) !== canonicalJson(request.value.importedSource.document)) issue(issues, "$.data.document", "invariant", "Imported document must remain unchanged.");
+    if (canonicalJson(source.sourceWarnings) !== canonicalJson(request.value.importedSource.warnings)) issue(issues, "$.data.sourceWarnings", "invariant", "Ingestion warnings must remain unchanged.");
+    if (source.provenance !== "analysis") issue(issues, "$.data.provenance", "invariant", "Expected actual analysis provenance.");
+  }
+  return result(input, issues);
+}
+export function validateDisplayEvaluateTextRequest(input: unknown): ValidationResult<EvaluateTextRequest> {
+  const issues: ValidationIssue[] = [];
+  // Human input stays required and nonempty; only its cached AI analysis uses the display contract.
+  const rule = object({ schemaVersion: version, importedSource: optional(importedSourceRule), sourceAnalysis: displayRule(analysisRule), topicIds: array(id, 1), learner: object({ text: string() }) });
+  shape(input, rule, "$", issues);
+  if (!issues.length) {
+    const request = input as EvaluateTextRequest, source = validateDisplaySourceAnalysis(request.sourceAnalysis);
+    if (!source.valid) issues.push(...source.issues);
+    if (request.importedSource) {
+      const imported = validateImportedSource(request.importedSource);
+      if (!imported.valid) issues.push(...imported.issues);
+      if (canonicalJson(request.importedSource.document) !== canonicalJson(request.sourceAnalysis.document)) issue(issues, "$.importedSource.document", "invariant", "Source document differs from analysis.");
+    }
+    unique(request.topicIds, "$.topicIds", issues);
+    const topics = new Set(request.sourceAnalysis.graph.topics.map(t => t.id));
+    request.topicIds.forEach(id => exists(id, topics, "$.topicIds", issues));
+  }
+  return result(input, issues);
+}
+export function validateDisplayEvaluateTextResponse(requestInput: unknown, input: unknown): ValidationResult<EvaluateTextResponse> {
+  const request = validateDisplayEvaluateTextRequest(requestInput), issues: ValidationIssue[] = request.valid ? [] : [...request.issues];
+  shape(input, responseRule(input, displayRule(evaluationRule)), "$", issues);
+  if (!issues.length && request.valid && (input as EvaluateTextResponse).ok) {
+    const evaluation = (input as { data: EvaluationResult }).data, source = request.value.sourceAnalysis;
+    checkDisplayGraph(evaluation.learnerGraph, issues, "$.data.learnerGraph");
+    if (evaluation.sourceAnalysisId !== source.id || canonicalJson(evaluation.learnerDocument.blocks.map(b => b.text).join("\n\n")) !== canonicalJson(request.value.learner.text)) issue(issues, "$.data", "reference", "Evaluation belongs to different input.");
+    if (canonicalJson([...evaluation.topicIds].sort()) !== canonicalJson([...request.value.topicIds].sort())) issue(issues, "$.data.topicIds", "reference", "Evaluation scope differs from request.");
+    const learner = new Set(evaluation.learnerGraph.statements.map(s => s.id));
+    const reference = new Set(source.graph.statements.map(s => s.id));
+    evaluation.comparisons.forEach((c, i) => {
+      exists(c.referenceRelationshipId, reference, `$.data.comparisons[${i}]`, issues);
+      c.learnerStatements.forEach(r => { exists(r.statementId, learner, `$.data.comparisons[${i}]`, issues); if (r.graphId !== evaluation.learnerGraph.id) issue(issues, `$.data.comparisons[${i}]`, "reference", "Wrong learner graph."); });
+    });
+    evaluation.additionalIdeas.forEach(a => a.learnerStatements.forEach(r => exists(r.statementId, learner, "$.data.additionalIdeas", issues)));
+  }
+  return result(input, issues);
+}

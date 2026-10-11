@@ -93,6 +93,7 @@ export interface Evidence {
 
 export type StatementRepresentation =
   | { kind: "binary"; subjectConceptId: string; relation: string; objectConceptId: string }
+  /** An empty participant list renders the original assertion as a content card. */
   | { kind: "complex"; participants: { conceptId: string; role: string }[] };
 
 export interface Statement {
@@ -154,7 +155,7 @@ export interface StatementRef {
 
 export interface ComparisonItem {
   id: string;
-  /** Exactly one comparison per selected source statement, binary or complex. */
+  /** At most one usable comparison per selected source statement. */
   referenceRelationshipId: string;
   /** Always a topic ID in the source graph. */
   topicId: string;

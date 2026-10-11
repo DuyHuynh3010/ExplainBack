@@ -52,7 +52,7 @@ export async function handleExplanationOperation<T>(
       const selected = provider ?? createGeminiProvider(env, undefined, diagnostic);
       diagnostic({ stage: purpose === "learner_scoped_repair" ? "evaluation_scoped_repair" : purpose === "learner_representation_repair" ? "evaluation_representation_repair" : purpose === "learner_alignment_repair" ? "evaluation_alignment_repair" : `${operation}_generation`, call: calls, purpose: purpose ? "repair" : "initial" });
       const result = await selected.generate({ ...input, signal });
-      if (result.finishReason !== "stop") throw new AnalysisError(result.finishReason === "truncated" ? "AI_OUTPUT_TRUNCATED" : "AI_OUTPUT_INVALID", 502, "AI did not return a complete supported response.");
+      if ((operation === "transcription" && result.finishReason !== "stop") || !result.text.trim()) throw new AnalysisError(result.finishReason === "truncated" ? "AI_OUTPUT_TRUNCATED" : "AI_OUTPUT_INVALID", 502, "AI did not return a complete supported response.");
       return result;
     } });
     diagnostic({ stage: `${operation}_complete`, call: calls, validation: "passed" });
