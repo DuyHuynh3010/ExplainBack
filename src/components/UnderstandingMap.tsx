@@ -34,7 +34,6 @@ export function UnderstandingMap(props: Props) {
 
 function TopicAnalysis({ analysis, importedSource, topicId, evaluation }: Pick<Props, "analysis" | "importedSource" | "topicId" | "evaluation">) {
   const statements = analysis.graph.statements.filter(s => s.topicId === topicId);
-  const complex = statements.filter(s => s.representation.kind === "complex");
   const [selected, setSelected] = useState(statements[0]?.id ?? "");
   const [graphWidth, setGraphWidth] = useState(0);
   const graphContainer = useRef<HTMLDivElement>(null);
@@ -63,13 +62,7 @@ function TopicAnalysis({ analysis, importedSource, topicId, evaluation }: Pick<P
     <div className="results-layout"><div className="card map-card">
       <div className="card-heading"><div><GitBranch size={19} /><h2>Reference graph</h2></div><span className="small-label">{statements.length} RELATIONSHIPS</span></div>
       <div ref={graphContainer} className="graph reference-graph" aria-label="Source concept map" data-topic-id={topicId}>{graphWidth > 0 && <ReactFlow key={String(narrowGraph)} nodes={flow.nodes} edges={flow.edges.map(e => ({ ...e, selected: selected === e.id }))} edgeTypes={edgeTypes} fitView fitViewOptions={{ padding: 0.3 }} nodesDraggable={false} nodesConnectable={false} onEdgeClick={(_, edge) => selectStatement(edge.id)} minZoom={0.1} maxZoom={2} preventScrolling={false}><Background gap={18} color="#dfe5e3" /><Controls showInteractive={false} /></ReactFlow>}</div>
-      <p className="fine-print graph-help">Arrows show binary relationships. Complex statements are preserved in cards below; their participants remain visible as nodes. Select an edge or statement to inspect evidence.</p>
-      {complex.map(s => <article className="card lesson-summary" key={s.id} aria-label="Complex statement">
-        <div className="card-heading"><h3>Complex statement</h3>{evaluation ? (() => { const c = evaluation.comparisons.find(c => c.referenceRelationshipId === s.id); return c ? <StatusBadge status={c.status} /> : <span>Not evaluated</span>; })() : <span className="neutral-label">Source</span>}</div>
-        <p>{s.assertion}</p>
-        {s.representation.kind === "complex" && <ul>{s.representation.participants.map((p, i) => <li key={i}>{p.role}: {analysis.graph.concepts.find(c => c.id === p.conceptId)?.name}</li>)}</ul>}
-        <button className="button ghost" onClick={() => selectStatement(s.id)}>Inspect statement evidence</button>
-      </article>)}
+      <p className="fine-print graph-help">Arrows show binary relationships. Select an edge or any source relationship below to inspect its evidence and participants.</p>
       <div className="relationship-list"><p className="eyebrow">SELECT A SOURCE RELATIONSHIP</p>{statements.map(s => <button key={s.id} data-statement-id={s.id} aria-pressed={selected === s.id} className={`relationship-row ${selected === s.id ? "selected" : ""}`} onClick={() => selectStatement(s.id)}><span>{s.assertion}</span>{evaluation ? (() => { const c = evaluation.comparisons.find(c => c.sourceStatements.some(ref => ref.statementId === s.id)); return c ? <StatusBadge status={c.status} /> : <span className="neutral-label">Not evaluated</span>; })() : <span className="neutral-label">Source</span>}</button>)}</div>
     </div>{statement && <div>{evaluation && comparison && <ExplanationFeedback evaluation={evaluation} comparison={comparison} />}<SourceEvidenceDetails analysis={analysis} importedSource={importedSource} statement={statement} evaluated={!!evaluation} /></div>}</div>
     {evaluation && evaluation.additionalIdeas.filter(i => i.topicId === topicId || (!i.topicId && topicId === analysis.graph.topics[0].id)).map(idea => <article className="card lesson-summary" key={idea.id} aria-label="Additional idea"><h2>Additional idea outside the source</h2><p>{idea.explanation}</p>{idea.learnerStatements.map(ref => <div key={ref.statementId}>{evaluation.learnerGraph.statements.find(s => s.id === ref.statementId)?.evidenceIds.map(id => <blockquote className="source-quote" key={id}>{evaluation.learnerGraph.evidence.find(e => e.id === id)?.quote}</blockquote>)}</div>)}<p className="fine-print">This is not automatically a correctness verdict.</p></article>)}

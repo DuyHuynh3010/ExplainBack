@@ -5,7 +5,7 @@ import { normalizeEvaluation } from "../src/backend/explanations/evaluation";
 import { test, expect } from "@playwright/test";
 import { readFile, writeFile } from "node:fs/promises";
 import { existsSync } from "node:fs";
-test.use({ baseURL: "http://localhost:3000" });
+test.use({ baseURL: `http://localhost:${process.env.PLAYWRIGHT_PORT ?? "3000"}` });
 test.skip(!existsSync("test-results/graph-v2/offline.json"), "Run the offline multi-section regressions first.");
 test("synthetic document-wide fixture: topic switching, summaries, endpoints and evidence", async ({ page }) => {
   const fixture = JSON.parse(await readFile("test-results/graph-v2/offline.json", "utf8"));
@@ -28,7 +28,7 @@ test("synthetic document-wide fixture: topic switching, summaries, endpoints and
     const statements = analysis.graph.statements.filter((s: { topicId: string }) => s.topicId === topic.id);
     await expect(page.locator(".react-flow__node")).toHaveCount(concepts.length);
     await expect(page.locator(".react-flow__edge")).toHaveCount(statements.filter((s: Statement) => s.representation.kind === "binary").length);
-    await expect(page.getByRole("article", { name: "Complex statement", exact: true })).toHaveCount(statements.filter((s: Statement) => s.representation.kind === "complex").length);
+    await expect(page.getByRole("article", { name: "Complex statement", exact: true })).toHaveCount(0);
     await expect(page.getByRole("complementary", { name: "Source relationship details" })).toContainText(statements[0].assertion);
     for (const statement of statements) {
       await page.locator(`.relationship-list [data-statement-id="${statement.id}"]`).click();
@@ -64,9 +64,9 @@ test("synthetic document-wide fixture: topic switching, summaries, endpoints and
   await page.getByRole("button", { name: "Evaluate", exact: true }).click();
   await expect(page.getByRole("heading", { name: "Your explanation feedback", level: 1 })).toBeVisible();
   await page.getByLabel("Topic", { exact: true }).selectOption(joint.topicId);
-  const card = page.getByRole("article", { name: "Complex statement", exact: true });
-  await expect(card).toContainText("Partial");
-  await card.getByRole("button", { name: "Inspect statement evidence" }).click();
+  const relationship = page.locator(`.relationship-list [data-statement-id="${joint.id}"]`);
+  await expect(relationship).toContainText("Partial");
+  await relationship.click();
   await expect(page.getByRole("article", { name: "Explanation feedback" })).toContainText(learner);
   await expect(page.getByRole("complementary", { name: "Source relationship details" })).toContainText(joint.assertion);
   await page.locator(".map-card").screenshot({ path: "test-results/graph-v2/complex-feedback.png" });

@@ -34,7 +34,7 @@ test("live: full multisection source, topic views, then reordered contradictory 
     const used = new Set(statements.flatMap(s => referencedConceptIds(s.representation)));
     await expect(page.locator(".react-flow__node")).toHaveCount(used.size);
     await expect(page.locator(".react-flow__edge")).toHaveCount(statements.filter(s => s.representation.kind === "binary").length);
-    await expect(page.getByRole("article", { name: "Complex statement", exact: true })).toHaveCount(statements.filter(s => s.representation.kind === "complex").length);
+    await expect(page.getByRole("article", { name: "Complex statement", exact: true })).toHaveCount(0);
     await expect(page.getByRole("article", { name: "Topic summary" })).toContainText(analysis.lessonSections.find(s => s.topicId === topic.id)!.summary);
     for (const s of statements) {
       await page.locator(`.relationship-list [data-statement-id="${s.id}"]`).click();

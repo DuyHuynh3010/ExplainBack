@@ -13,7 +13,7 @@ async function inspectTopics(page: Page, analysis: SourceAnalysis) {
     await expect(page.getByRole("article", { name: "Topic summary" })).toContainText(lesson.summary);
     const statements = analysis.graph.statements.filter(s => s.topicId === topic.id);
     await expect(page.locator(".react-flow__edge")).toHaveCount(statements.filter(s => s.representation.kind === "binary").length);
-    await expect(page.getByRole("article", { name: "Complex statement", exact: true })).toHaveCount(statements.filter(s => s.representation.kind === "complex").length);
+    await expect(page.getByRole("article", { name: "Complex statement", exact: true })).toHaveCount(0);
     for (const statement of statements) {
       await page.locator(`.relationship-list [data-statement-id="${statement.id}"]`).click();
       const panel = page.getByRole("complementary", { name: "Source relationship details" });
@@ -53,15 +53,7 @@ for (const name of ["biology", "non-biology"]) test(`synthetic representation: $
   await inspectTopics(page, fixture.analysis);
   for (const topic of fixture.analysis.graph.topics) {
     await page.getByLabel("Topic", { exact: true }).selectOption(topic.id);
-    for (const s of fixture.analysis.graph.statements.filter((s: Statement) => s.topicId === topic.id && s.representation.kind === "complex")) {
-      const card = page.getByRole("article", { name: "Complex statement", exact: true }).filter({ has: page.locator("p").filter({ hasText: s.assertion }) });
-      await expect(card).toHaveCount(1);
-      await expect(card.locator("li")).toHaveCount(s.representation.participants.length);
-      for (const p of s.representation.participants) {
-        const text = `${p.role}: ${fixture.analysis.graph.concepts.find((c: { id: string }) => c.id === p.conceptId).name}`;
-        await expect(card.getByRole("listitem").filter({ hasText: text })).toHaveCount(1);
-      }
-    }
+    await expect(page.getByRole("article", { name: "Complex statement", exact: true })).toHaveCount(0);
     for (const s of fixture.analysis.graph.statements.filter((s: Statement) => s.topicId === topic.id && s.representation.kind === "binary")) {
       // SVG edge identity and direction stay tied to the domain statement; no complex projection.
       await expect(page.locator(`.react-flow__edge[data-id="${s.id}"]`)).toHaveCount(1);
