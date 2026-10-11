@@ -73,6 +73,6 @@ export function UnderstandingMap({ analysis, importedSource, topicId, onTopic, o
     </div>
 
     <div className="card relationship-list"><p className="eyebrow">{view === "compare" ? "SELECT A COMPARISON OR ADDITIONAL IDEA" : view === "lesson" ? "SELECT A SOURCE RELATIONSHIP" : "WHAT YOUR EXPLANATION SAYS"}</p>{flow.details.map(d => <button key={d.id} data-detail-id={view === "lesson" ? undefined : d.id} data-statement-id={d.lesson[0]?.id} aria-pressed={choice.id === d.id} className={`relationship-row ${choice.id === d.id ? "selected" : ""}`} onClick={() => select({ kind: "statement", id: d.id })}><span>{d.lesson[0]?.assertion ?? d.learner[0]?.assertion}</span>{view === "compare" && d.comparison ? <StatusBadge status={d.comparison.status} /> : <span className="neutral-label">{view === "lesson" ? "Source" : view === "compare" ? "Not compared" : "Explanation"}</span>}</button>)}</div>
-    <div className="card-bottom"><button className="button ghost" onClick={onBack}><ArrowLeft size={16} />{evaluation ? "Back to analysis" : "Back to source"}</button><button className="button primary" onClick={onExplain}>{evaluation ? "Edit and try again" : "Write your explanation"}<ArrowRight size={17} /></button></div>
+    <div className="card-bottom"><button className="button ghost" onClick={onBack}><ArrowLeft size={16} />{evaluation ? "Back to analysis" : "Back to source"}</button><button className="button primary" onClick={onExplain}>{evaluation ? "Review flashcards" : "Write your explanation"}<ArrowRight size={17} /></button></div>
   </section>;
 }

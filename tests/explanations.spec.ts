@@ -38,7 +38,7 @@ async function fakeRecording(page: Page) {
 async function record(page: Page) { await page.getByRole("button", { name: "Start recording", exact: true }).click(); await page.getByRole("button", { name: "Stop", exact: true }).click(); }
 const transcript = { transcript: "Glucose does not store energy.", language: "en", warnings: [], audio: { mimeType: "audio/webm", bytes: 10 } };
 
-test("mock: text evaluation retains source endpoints, shows statuses and real learner quotes, and can edit again", async ({ page }) => {
+test("mock: text evaluation retains source endpoints, reviews weak relationships, and can explain again", async ({ page }, info) => {
   let calls = 0, source;
   await page.route("**/api/evaluations", r => { calls++; const b = r.request().postDataJSON(); source = b.sourceAnalysis; return r.fulfill({ contentType: "application/json", body: envelope(mockEvaluation(b)) }); });
   await explain(page); await page.getByLabel("Explanation text").fill("Glucose stores energy.");
@@ -52,7 +52,17 @@ test("mock: text evaluation retains source endpoints, shows statuses and real le
   await expect(page.locator(".react-flow__edge")).toHaveCount(source!.graph.statements.length + 1);
   const edges = await page.locator(".react-flow__edge").evaluateAll(elements => elements.map(e => e.getAttribute("data-id")));
   for (const s of source!.graph.statements) expect(edges).toContain(`${source!.graph.id}:${s.id}`);
-  await page.getByRole("button", { name: "Edit and try again" }).click();
+  await page.getByRole("button", { name: "Review flashcards" }).click();
+  await expect(page.getByRole("heading", { name: "Review what needs another pass." })).toBeVisible();
+  await expect(page.locator(".review-card-shell")).toHaveCount(source!.graph.statements.length - 1);
+  await expect(page.locator(".review-card-shell .status-badge.correct")).toHaveCount(0);
+  await page.locator(".review-stage").screenshot({ path: `test-results/flashcard-review-${info.project.name}-front.png` });
+  await page.getByRole("button", { name: "Reveal review answer" }).click();
+  await expect(page.locator(".review-card-shell.active .review-flashcard")).toHaveClass(/flipped/);
+  await expect(page.getByText(`1 of ${source!.graph.statements.length - 1} reviewed`)).toBeVisible();
+  await page.waitForTimeout(550);
+  await page.locator(".review-stage").screenshot({ path: `test-results/flashcard-review-${info.project.name}-back.png` });
+  await page.getByRole("button", { name: "Explain again" }).click();
   await expect(page.getByLabel("Explanation text")).toHaveValue("Glucose stores energy."); expect(calls).toBe(1);
 });
 test("mock: evaluation error retains input and retry uses the same analysis and ingestion", async ({ page }) => {

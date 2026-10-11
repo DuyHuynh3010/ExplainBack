@@ -77,7 +77,8 @@ test("V3 saved real graph: visual metrics, short gate and captured evaluation ou
   await text.fill(short.request.learner.text); await expect(evaluate).toBeEnabled();
   await evaluate.click(); await expect(page.getByRole("heading", { name: "Your explanation feedback", level: 1 })).toBeVisible();
   results.shortFeedbackRendered = true;
-  await page.getByRole("button", { name: "Edit and try again" }).click();
+  await page.getByRole("button", { name: "Review flashcards" }).click();
+  await page.getByRole("button", { name: "Explain again" }).click();
   evaluationName = "paraphrase";
   const paraphrase = JSON.parse(await readFile("test-results/v3-audit/paraphrase-live.json", "utf8"));
   await text.fill(paraphrase.request.learner.text); await evaluate.click();

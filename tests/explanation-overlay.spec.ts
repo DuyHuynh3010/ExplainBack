@@ -65,7 +65,8 @@ test("exact reordered explanation -> own graph -> one overlay with opposing asse
   await page.getByRole("button", { name: "Explanation", exact: true }).click(); await ready(page);
   // Native browser chrome owns Escape; emulate external exit for headless automation.
   await page.evaluate(() => document.exitFullscreen()); await expect(page.getByRole("dialog")).toHaveCount(0);
-  await page.getByRole("button", { name: "Edit and try again" }).click();
+  await page.getByRole("button", { name: "Review flashcards" }).click();
+  await page.getByRole("button", { name: "Explain again" }).click();
   await expect(page.getByLabel("Explanation text")).toHaveValue(f.input.learner.text);
   await page.getByRole("button", { name: "Create explanation graph", exact: true }).click(); await ready(page);
   await page.getByRole("button", { name: "Compare", exact: true }).click(); await ready(page);

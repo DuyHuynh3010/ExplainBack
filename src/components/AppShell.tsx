@@ -9,6 +9,7 @@ import { StepIndicator } from "./StepIndicator";
 import { SourceInput } from "./SourceInput";
 import { RecorderPreview } from "./RecorderPreview";
 import { UnderstandingMap } from "./UnderstandingMap";
+import { FlashcardReview } from "./FlashcardReview";
 import { ALL_TOPICS, ADDITIONAL_IDEAS, type GraphView } from "@/lib/comparison-graph";
 
 export function AppShell() {
@@ -79,8 +80,9 @@ export function AppShell() {
       <div className="session-toolbar"><StepIndicator step={step} /><button className="button ghost" onClick={reset}><RotateCcw size={15} />Start over</button></div>
       {step === 1 && <SourceInput key={resetVersion} title={title} source={source} sourceFile={sourceFile} onTitle={changeTitle} onSource={changeSource} onSourceFile={changeSourceFile} onSample={loadSample} onContinue={continueWithSource} phase={session.phase} requestError={session.error} importedSource={session.importedSource} progress={session.progress} onCancel={session.cancel} />}
       {step === 2 && session.analysis && session.importedSource && <UnderstandingMap analysis={session.analysis} importedSource={session.importedSource} topicId={lessonTopic} onTopic={setTopicId} onBack={() => setStep(1)} onExplain={() => { setEditingExplanation(!explanation.evaluation); setStep(3); }} />}
-      {step === 3 && explanation.evaluation && !editingExplanation && session.analysis && session.importedSource && <UnderstandingMap analysis={session.analysis} importedSource={session.importedSource} topicId={graphView === "lesson" ? lessonTopic : topicId || ALL_TOPICS} onTopic={setTopicId} onBack={() => setStep(2)} onExplain={() => setEditingExplanation(true)} evaluation={explanation.evaluation} view={graphView} onView={changeGraphView} />}
+      {step === 3 && explanation.evaluation && !editingExplanation && session.analysis && session.importedSource && <UnderstandingMap analysis={session.analysis} importedSource={session.importedSource} topicId={graphView === "lesson" ? lessonTopic : topicId || ALL_TOPICS} onTopic={setTopicId} onBack={() => setStep(2)} onExplain={() => setStep(4)} evaluation={explanation.evaluation} view={graphView} onView={changeGraphView} />}
       {step === 3 && (!explanation.evaluation || editingExplanation) && <RecorderPreview title={title} explanationText={explanationText} explanationFile={explanationFile} audioFile={audioFile} onExplanationText={changeExplanationText} onExplanationFile={changeExplanationFile} onAudioFile={changeAudio} onBack={() => { setStep(2); }} onTranscribe={() => void transcribe()} onImportFile={() => void importExplanationFile()} onEvaluate={() => void evaluate()} phase={explanation.phase} requestError={explanation.error} transcription={explanation.transcription} canEvaluate={!!session.analysis && !!session.importedSource && !!explanationText.trim()} />}
+      {step === 4 && explanation.evaluation && session.analysis && <FlashcardReview analysis={session.analysis} evaluation={explanation.evaluation} onBack={() => setStep(3)} onExplainAgain={() => { setEditingExplanation(true); setStep(3); }} />}
       <footer className="workspace-footer"><span><ShieldCheck size={14} />Local session. No account needed.</span><span>Small steps. Deeper understanding.</span></footer>
     </main>
   </>;
