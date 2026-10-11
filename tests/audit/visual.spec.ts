@@ -75,7 +75,7 @@ test("V3 saved real graph: visual metrics, short gate and captured evaluation ou
   results.pendingExplanationFileBlocksEvaluation = true;
   const short = JSON.parse(await readFile("test-results/v3-audit/short-live.json", "utf8"));
   await text.fill(short.request.learner.text); await expect(evaluate).toBeEnabled();
-  await evaluate.click(); await expect(page.getByRole("heading", { name: "Your explanation feedback", level: 1 })).toBeVisible();
+  await evaluate.click(); await expect(page.getByRole("region", { name: "Your explanation feedback" })).toBeVisible();
   results.shortFeedbackRendered = true;
   await page.getByRole("button", { name: "Edit and try again" }).click();
   evaluationName = "paraphrase";
@@ -87,7 +87,7 @@ test("V3 saved real graph: visual metrics, short gate and captured evaluation ou
   evaluationName = "contradiction";
   const contradiction = JSON.parse(await readFile("test-results/v3-audit/contradiction-live.json", "utf8"));
   await text.fill(contradiction.request.learner.text); await evaluate.click();
-  await expect(page.getByRole("heading", { name: "Your explanation feedback", level: 1 })).toBeVisible();
+  await expect(page.getByRole("region", { name: "Your explanation feedback" })).toBeVisible();
   await expect(page.locator(".relationship-list").getByText("Contradicted", { exact: true })).toHaveCount(2);
   await page.screenshot({ path: `test-results/v3-audit/contradiction-${testInfo.project.name}.png`, fullPage: true });
   results.contradictedBadges = 2;

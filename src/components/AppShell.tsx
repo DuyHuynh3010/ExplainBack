@@ -1,6 +1,6 @@
 "use client";
 import { useRef, useState, useEffect } from "react";
-import { AudioLines, ShieldCheck, RotateCcw } from "lucide-react";
+import { AudioLines, BookOpen, ShieldCheck, RotateCcw } from "lucide-react";
 import type { Step } from "@/types/lesson";
 import { sampleSource, sampleTitle } from "@/fixtures/photosynthesis";
 import { useSourceAnalysis } from "@/lib/use-source-analysis";
@@ -59,18 +59,22 @@ export function AppShell() {
     await explanation.evaluate({ schemaVersion: "2.0", importedSource: session.importedSource, sourceAnalysis: session.analysis, topicIds: session.analysis.graph.topics.map(t => t.id), learner: { text: explanationText } });
   }
 
-  return <>
-    <header className="app-header"><div className="header-inner">
-      <div className="brand"><span className="brand-icon"><AudioLines size={24} /></span><div><span className="brand-name">ExplainBack<span className="brand-dot">.</span></span><p>Understand by explaining.</p></div></div>
-      <span className="demo-badge"><span />Live source analysis</span>
-    </div></header>
-    <main ref={main} tabIndex={-1} className="workspace">
-      <div className="session-toolbar"><StepIndicator step={step} /><button className="button ghost" onClick={reset}><RotateCcw size={15} />Start over</button></div>
-      {step === 1 && <SourceInput key={resetVersion} title={title} source={source} sourceFile={sourceFile} onTitle={changeTitle} onSource={changeSource} onSourceFile={changeSourceFile} onSample={loadSample} onContinue={continueWithSource} phase={session.phase} requestError={session.error} importedSource={session.importedSource} progress={session.progress} onCancel={session.cancel} />}
+  const stepLabels = ["Learning source", "Source analysis", "Your explanation"];
+  return <div className="app-frame">
+    <aside className="app-sidebar">
+      <div className="brand"><span className="brand-icon"><AudioLines size={22} /></span><span className="brand-name">ExplainBack<span className="brand-dot">.</span></span></div>
+      <StepIndicator step={step} />
+      <div className="sidebar-actions"><p className="eyebrow">QUICK START</p><button className="button sidebar-sample" onClick={() => { loadSample(); setStep(1); }}><BookOpen size={16} />Load sample lesson</button></div>
+      <div className="sidebar-footer"><span><ShieldCheck size={14} />Local session</span><span className="demo-badge"><span />Live analysis</span></div>
+    </aside>
+    <div className="app-main">
+      <header className="workspace-header"><div><span className="eyebrow">CURRENT STEP</span><strong>{stepLabels[step - 1]}</strong></div><div className="workspace-actions"><span>{String(step).padStart(2, "0")} / 03</span><button className="button ghost" onClick={reset}><RotateCcw size={15} />Start over</button></div></header>
+      <main ref={main} tabIndex={-1} className="workspace">
+      {step === 1 && <SourceInput key={resetVersion} title={title} source={source} sourceFile={sourceFile} onTitle={changeTitle} onSource={changeSource} onSourceFile={changeSourceFile} onContinue={continueWithSource} phase={session.phase} requestError={session.error} importedSource={session.importedSource} progress={session.progress} onCancel={session.cancel} />}
       {step === 2 && session.analysis && session.importedSource && <UnderstandingMap analysis={session.analysis} importedSource={session.importedSource} topicId={topicId || session.analysis.graph.topics[0].id} onTopic={setTopicId} onBack={() => setStep(1)} onExplain={() => setStep(3)} />}
       {step === 3 && explanation.evaluation && session.analysis && session.importedSource && <UnderstandingMap analysis={session.analysis} importedSource={session.importedSource} topicId={topicId || session.analysis.graph.topics[0].id} onTopic={setTopicId} onBack={() => setStep(2)} onExplain={() => explanation.invalidate()} evaluation={explanation.evaluation} />}
       {step === 3 && !explanation.evaluation && <RecorderPreview title={title} explanationText={explanationText} explanationFile={explanationFile} audioFile={audioFile} onExplanationText={changeExplanationText} onExplanationFile={changeExplanationFile} onAudioFile={changeAudio} onBack={() => { explanation.invalidate(); setStep(2); }} onTranscribe={() => void transcribe()} onImportFile={() => void importExplanationFile()} onEvaluate={() => void evaluate()} phase={explanation.phase} requestError={explanation.error} transcription={explanation.transcription} canEvaluate={!!session.analysis && !!session.importedSource && !!explanationText.trim()} />}
-      <footer className="workspace-footer"><span><ShieldCheck size={14} />Local session. No account needed.</span><span>Small steps. Deeper understanding.</span></footer>
-    </main>
-  </>;
+      </main>
+    </div>
+  </div>;
 }

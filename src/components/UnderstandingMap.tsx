@@ -19,8 +19,7 @@ interface Props {
 
 export function UnderstandingMap(props: Props) {
   const { analysis, importedSource, topicId, onTopic, onBack, onExplain, evaluation } = props;
-  return <section aria-labelledby="map-heading">
-    <div className="view-heading result-heading"><div><span className="eyebrow">STEP 02 · EXPLORE YOUR SOURCE</span><h1 id="map-heading">{evaluation ? "Your explanation feedback" : "See how the ideas connect."}</h1><p>{analysis.document.title || "Your learning source"} · Reference knowledge and topic summaries</p></div></div>
+  return <section aria-label={evaluation ? "Your explanation feedback" : "Source analysis"}>
     <div className="notice"><Info size={18} /><p>{evaluation ? "AI feedback grounded in your source and explanation. Missing means not expressed here; uncertain means insufficient evidence. Review the quotes and source for accuracy." : "AI source analysis, not an evaluation of your explanation. Relationships are ungraded. Review the original source for accuracy."}</p></div>
     <div className="analysis-warnings" aria-label="Source warnings">
       {analysis.sourceWarnings?.map((w, i) => <p className="notice" key={`source-${i}`}>{w.code}{w.page !== undefined ? ` · Page ${w.page}` : ""}: {w.message}</p>)}

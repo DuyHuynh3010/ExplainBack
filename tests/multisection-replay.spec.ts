@@ -62,7 +62,7 @@ test("synthetic document-wide fixture: topic switching, summaries, endpoints and
   await page.getByRole("button", { name: "Write your explanation" }).click();
   await page.getByLabel("Explanation text").fill(learner);
   await page.getByRole("button", { name: "Evaluate", exact: true }).click();
-  await expect(page.getByRole("heading", { name: "Your explanation feedback", level: 1 })).toBeVisible();
+  await expect(page.getByRole("region", { name: "Your explanation feedback" })).toBeVisible();
   await page.getByLabel("Topic", { exact: true }).selectOption(joint.topicId);
   const relationship = page.locator(`.relationship-list [data-statement-id="${joint.id}"]`);
   await expect(relationship).toContainText("Partial");

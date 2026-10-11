@@ -18,8 +18,7 @@ export function RecorderPreview(props: Props) {
   const [error, setError] = useState("");
   const [recording, setRecording] = useState(false);
   const busy = phase !== "idle";
-  return <section aria-labelledby="explanation-heading">
-    <div className="view-heading"><span className="eyebrow">STEP 03 / MAKE IT YOUR OWN</span><h1 id="explanation-heading">Share your explanation.</h1><p>Type or record your explanation. Review and edit the transcript before evaluating it against your source.</p></div>
+  return <section aria-label="Your explanation">
     <div className="card explanation-card wide">
       <div className="card-heading"><div><Mic size={19} /><h2>{title.trim() || "Untitled lesson"}</h2></div><span className="small-label">TEXT OR VOICE</span></div>
       <div className="explanation-options"><div className="input-option">

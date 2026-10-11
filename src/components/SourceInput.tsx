@@ -1,6 +1,6 @@
 "use client";
 import { useState } from "react";
-import { AlertCircle, ArrowRight, BookOpen, LoaderCircle, Sparkles } from "lucide-react";
+import { AlertCircle, ArrowRight, BookOpen, LoaderCircle } from "lucide-react";
 import type { ImportedSource } from "@/backend/contracts/domain";
 import { SOURCE_LIMITS } from "@/backend/contracts/source-limits";
 import { ANALYSIS_LIMITS } from "@/backend/analysis/limits";
@@ -12,17 +12,16 @@ import type { AnalysisProgress } from "@/lib/source-analysis";
 interface Props {
   title: string; source: string; sourceFile: File | null;
   onTitle: (value: string) => void; onSource: (value: string) => void;
-  onSourceFile: (file: File | null) => void; onSample: () => void;
+  onSourceFile: (file: File | null) => void;
   onContinue: () => Promise<void>; onCancel: () => void;
   phase: SourcePhase; requestError: string; importedSource: ImportedSource | null;
   progress?: AnalysisProgress | null;
 }
 
-export function SourceInput({ title, source, sourceFile, onTitle, onSource, onSourceFile, onSample, onContinue, onCancel, phase, requestError, importedSource, progress }: Props) {
+export function SourceInput({ title, source, sourceFile, onTitle, onSource, onSourceFile, onContinue, onCancel, phase, requestError, importedSource, progress }: Props) {
   const [fileError, setFileError] = useState("");
   const loading = phase !== "idle";
-  return <section aria-labelledby="source-heading">
-    <div className="view-heading"><span className="eyebrow">STEP 01 · SET THE CONTEXT</span><h1 id="source-heading">What are you learning?</h1><p>Paste your material or upload a PDF or DOCX file.</p></div>
+  return <section aria-label="Learning source">
     <div className="source-layout"><div className="card source-card" aria-busy={loading}>
       <div className="card-heading"><div><BookOpen size={19} /><h2>Your learning source</h2></div><span className="small-label">TEXT OR FILE</span></div>
       <label htmlFor="lesson-title">Lesson title <span className="optional">optional</span></label>
@@ -43,6 +42,6 @@ export function SourceInput({ title, source, sourceFile, onTitle, onSource, onSo
         {loading && <button className="button secondary" onClick={onCancel}>Cancel processing</button>}
         <button className="button primary" disabled={(!source.trim() && !sourceFile) || loading} onClick={() => void onContinue()}>{loading ? <><LoaderCircle className="spin" size={17} />{phase === "importing" ? "Importing…" : "Analyzing…"}</> : <>{requestError ? "Retry" : "Continue"}<ArrowRight size={17} /></>}</button>
       </div></div>
-    </div><aside className="sample-card"><span className="icon-tile"><Sparkles size={22} /></span><span className="eyebrow">A LITTLE INSPIRATION</span><h2>Try it with a sample.</h2><p>Explore how plants turn sunlight into energy with a short photosynthesis lesson.</p><div className="sample-preview"><span>01 / SAMPLE LESSON</span><h3>How photosynthesis works</h3><p>Sunlight, a little chemistry, and the energy behind plant life.</p><span className="sample-tag">Biology · 1 min read</span></div><button className="button secondary" onClick={() => { onSample(); setFileError(""); }}><BookOpen size={16} />Load sample lesson</button><p className="fine-print">Sample text only. Continue runs the real backend; no demo graph or evaluation is substituted.</p></aside></div>
+    </div></div>
   </section>;
 }

@@ -42,7 +42,7 @@ for (const retry of [false, true]) test(`synthetic multi-topic UI: switching wit
   await page.goto("/"); await page.waitForLoadState("networkidle"); await page.getByLabel("Paste your learning material").fill(f.importedSource.normalizedText);
   await page.getByRole("button", { name: "Continue", exact: true }).click();
   if (retry) {
-    await expect(page.getByRole("region", { name: "What are you learning?" }).getByRole("alert")).toContainText("Mock provider failure");
+    await expect(page.getByRole("region", { name: "Learning source" }).getByRole("alert")).toContainText("Mock provider failure");
     await expect(page.getByLabel("Paste your learning material")).toHaveValue(f.importedSource.normalizedText);
     await expect(page.getByText("Completed parts are kept", { exact: false })).toBeVisible();
     expect(requests).toBe(2);
