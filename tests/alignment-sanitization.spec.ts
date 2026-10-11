@@ -1,0 +1,40 @@
+/** Offline replay of a candidate sanitized by the actual backend. Zero AI calls. */
+import { test, expect } from "@playwright/test";
+import { readFile } from "node:fs/promises";
+test.use({ channel: "chromium" });
+test("Explanation -> Compare keeps same-label unaligned nodes separate and feedback intact", async ({ page }, info) => {
+  const f=JSON.parse(await readFile(".explainback-artifacts/alignment-sanitization/browser-fixture.json","utf8"));
+  const envelope=(data:unknown)=>({ok:true,schemaVersion:"2.0",data});
+  let analysisCalls=0,evaluationCalls=0;
+  await page.route("**/api/**",r=>r.abort());
+  await page.route("**/api/sources",r=>r.fulfill({json:envelope(f.input.importedSource)}));
+  await page.route("**/api/analysis",r=>{analysisCalls++;return r.fulfill({json:envelope(f.input.sourceAnalysis)});});
+  await page.route("**/api/evaluations",r=>{evaluationCalls++;expect(r.request().postDataJSON().learner.text).toBe(f.input.learner.text);return r.fulfill({json:envelope(f.evaluation)});});
+  const ready=async()=>{await expect(page.getByLabel("Source concept map")).toHaveAttribute("data-layout-ready","true");};
+  await page.goto("/");await page.getByLabel("Paste your learning material").fill(f.input.importedSource.normalizedText);
+  await page.getByRole("button",{name:"Continue",exact:true}).click();await ready();
+  await page.getByRole("button",{name:"Write your explanation",exact:true}).click();
+  await page.getByLabel("Explanation text").fill(f.input.learner.text);
+  await page.getByRole("button",{name:"Create explanation graph",exact:true}).click();await ready();
+  await page.getByRole("button",{name:"Compare",exact:true}).click();await ready();
+  await page.getByLabel("Topic",{exact:true}).selectOption("__all__");await ready();
+  const glucose=page.locator(".knowledge-node").filter({has:page.locator(".knowledge-node-label",{hasText:/^Glucose$/})});
+  await expect(glucose).toHaveCount(2);
+  await expect(glucose.locator(".graph-provenance.both")).toHaveCount(0);
+  const comparison=f.evaluation.comparisons[0];
+  await page.locator(`.relationship-list [data-detail-id="${comparison.id}"]`).click();
+  const panel=page.getByRole("complementary",{name:"Comparison details"});
+  await expect(panel.locator(".comparison-difference")).toContainText(comparison.explanation);
+  await expect(panel).toContainText("Not mentioned in your explanation");
+  const idea=f.evaluation.additionalIdeas[0],claimId=idea.learnerStatements[0].statementId;
+  await page.locator(`.relationship-list [data-detail-id="additional:${claimId}"]`).click();
+  await expect(panel).toContainText(idea.explanation);await expect(panel).toContainText(f.input.learner.text);
+  await expect(page.locator(".react-flow__node.graph-highlight")).toHaveCount(2);
+  await expect(page.locator(".react-flow__edge.selected")).toHaveCount(1);
+  await expect(panel.locator(".status-badge")).toHaveCount(0); // additional remains ungraded
+  await page.getByRole("button",{name:"Explanation",exact:true}).click();await ready();
+  await page.getByRole("button",{name:"Compare",exact:true}).click();await ready();
+  await expect(glucose).toHaveCount(2);
+  await page.screenshot({path:`.explainback-artifacts/alignment-sanitization/compare-${info.project.name}.png`,fullPage:true});
+  expect(analysisCalls).toBe(1);expect(evaluationCalls).toBe(1);
+});

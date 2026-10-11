@@ -53,12 +53,14 @@ test("live: full multisection source, topic views, then reordered contradictory 
   const learner = "C4 photosynthesis first forms a four-carbon intermediate, whereas C3 forms a three-carbon compound. The Calvin cycle happens in the stroma and uses ATP and NADPH to assemble glucose from carbon dioxide. Chlorophyll absorbs red and blue light and reflects green light. Plants use sunlight for photosynthesis, using water and carbon dioxide to make glucose. Photosynthesis does not produce oxygen.";
   await page.getByLabel("Explanation text").fill(learner);
   const evaluating = page.waitForResponse(r => r.url().endsWith("/api/evaluations") && r.request().method() === "POST", { timeout: 75000 });
-  await page.getByRole("button", { name: "Evaluate", exact: true }).click();
+  await page.getByRole("button", { name: "Create explanation graph", exact: true }).click();
   const evaluated = await evaluating, evaluation = await evaluated.json(), evaluationRequest = evaluated.request().postDataJSON();
   await writeFile(`${dir}/evaluation-live.json`, JSON.stringify({ request: evaluationRequest, status: evaluated.status(), response: evaluation }, null, 2));
   expect(evaluation.ok, `Live evaluation stopped: ${evaluation.error?.code}`).toBe(true);
   expect(validateEvaluateTextResponse(evaluationRequest, evaluation).valid).toBe(true);
   expect(evaluationRequest.sourceAnalysis).toEqual(analysis);
+  await expect(page.getByRole("heading", { name: "Explanation graph", exact: true })).toBeVisible();
+  await page.getByRole("button", { name: "Compare", exact: true }).click();
   const outcomes = [];
   for (const topic of analysis.graph.topics) {
     await page.getByLabel("Topic", { exact: true }).selectOption(topic.id);

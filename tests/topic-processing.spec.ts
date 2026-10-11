@@ -12,9 +12,10 @@ async function switchTopics(page: Page, analysis: SourceAnalysis) {
     const selected = analysis.graph.statements.filter(s => s.topicId === topic.id);
     const ids = new Set(selected.flatMap(s => s.representation.kind === "binary" ? [s.representation.subjectConceptId, s.representation.objectConceptId] : s.representation.participants.map(p => p.conceptId)));
     await expect(page.getByLabel("Source concept map")).toHaveAttribute("data-topic-id", topic.id);
-    await expect(page.locator(".react-flow__node")).toHaveCount(ids.size);
-    expect((await page.locator(".react-flow__node").evaluateAll(nodes => nodes.map(n => n.getAttribute("data-id")))).sort()).toEqual([...ids].map(id => `${analysis.graph.id}:${id}`).sort());
-    await expect(page.locator(".react-flow__edge")).toHaveCount(selected.filter(s => s.representation.kind === "binary").length);
+    const complex = selected.filter(s => s.representation.kind === "complex");
+    await expect(page.locator(".react-flow__node")).toHaveCount(ids.size + complex.length);
+    expect((await page.locator(".react-flow__node").evaluateAll(nodes => nodes.map(n => n.getAttribute("data-id")))).sort()).toEqual([...ids].map(id => `${analysis.graph.id}:${id}`).concat(complex.map(s => `relation:${analysis.graph.id}:${s.id}`)).sort());
+    await expect(page.locator(".react-flow__edge")).toHaveCount(selected.reduce((n, s) => n + (s.representation.kind === "binary" ? 1 : s.representation.participants.length), 0));
     await expect(page.locator(".relationship-list [data-statement-id]")).toHaveCount(selected.length);
     await expect(page.getByRole("article", { name: "Topic summary" })).toContainText(analysis.lessonSections.find(l => l.topicId === topic.id)!.summary);
     await expect(page.getByRole("complementary", { name: "Source relationship details" })).toContainText(selected[0].assertion);

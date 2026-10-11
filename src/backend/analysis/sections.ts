@@ -16,6 +16,8 @@ function heading(text: string, following?: string): string | undefined {
   const markdown = /^(?:#{1,6}\s+(.+)|\*\*(.+)\*\*)$/.exec(first);
   if (markdown) return (markdown[1] ?? markdown[2]).trim();
   // Plain headings must precede body text, not turn every paragraph into a topic.
+  // A colon introduces continuing content (for example a formula), not a new section.
+  if (/[:：]$/.test(first)) return;
   if (first.length <= 100 && first.split(/\s+/).length <= 12 && !/[.!?。？！]$/.test(first) &&
       (lines.slice(1).join(" ").length > 80 || (following?.length ?? 0) > 80)) return first;
 }

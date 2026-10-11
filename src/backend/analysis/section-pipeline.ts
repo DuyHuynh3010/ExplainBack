@@ -9,10 +9,13 @@ import { analyzeImportedSource, validateAnalysisInput } from "./pipeline";
 import type { AnalysisProvider } from "./provider";
 import type { AnalysisDiagnostic, CaptureAnalysis } from "./diagnostics";
 import { SECTION_LIMITS, planSourceParts, type CompletedPart, type SourcePart, type PartProgress } from "./sections";
+import { resolveDraftConcepts } from "./concept-catalog";
 
 export class SectionFailure extends AnalysisError {
+  readonly issues?: import("./errors").DraftIssue[];
   constructor(error: AnalysisError, public readonly callsUsed: number) {
     super(error.code, error.status, error.message, error.retryable, error.retryAfterSeconds);
+    this.issues = error instanceof DraftError ? error.issues : undefined;
   }
 }
 function invalid(message: string): never { throw new AnalysisError("INVALID_REQUEST", 400, message); }
@@ -21,9 +24,9 @@ const sourceHash = (r: AnalyzeImportedSourceRequest) => createHash("sha256").upd
 
 /** IDs, not matching labels, govern cross-part identity. AI may reuse catalog IDs. */
 export function namespacePart(draft: AnalysisDraft, part: SourcePart, catalog: AnalysisDraft["concepts"]): AnalysisDraft {
+  draft = resolveDraftConcepts(draft, catalog);
   const known = new Map(catalog.map(c => [c.id, c]));
   const ids = new Map(draft.concepts.map(c => [c.id, known.has(c.id) ? c.id : `${part.id}:${c.id}`]));
-  for (const c of draft.concepts) if (known.has(c.id) && (c.name !== known.get(c.id)!.name || c.symbol !== known.get(c.id)!.symbol)) draftFailure("A reused canonical concept ID cannot change its name/symbol. Use a distinct ID for a different concept.");
   const ref = (id: string) => ids.get(id) ?? draftFailure("A part references a concept without its record.");
   const statementIds = new Map(draft.statements.map(s => [s.id, `${part.id}:${s.id}`]));
   const sr = (id: string) => statementIds.get(id) ?? draftFailure("A lesson references an unknown part statement.");
@@ -38,16 +41,17 @@ export function namespacePart(draft: AnalysisDraft, part: SourcePart, catalog: A
 export function mergePartDrafts(completed: CompletedPart[]): AnalysisDraft {
   const drafts = completed.map(c => c.draft);
   const topics = [...new Map(drafts.flatMap(d => d.topics).map(t => [t.id, t])).values()];
-  return { topics, concepts: canonicalConcepts(drafts.flatMap(d => d.concepts)),
+  return resolveDraftConcepts({ topics, concepts: canonicalConcepts(drafts.flatMap(d => d.concepts)),
     statements: drafts.flatMap(d => d.statements), blockDispositions: drafts.flatMap(d => d.blockDispositions),
     lessonSections: topics.map(t => {
       const lessons = drafts.flatMap(d => d.lessonSections).filter(l => l.topicId === t.id);
       return { topicId: t.id, summary: lessons.map(l => l.summary).join("\n\n"), statementIds: lessons.flatMap(l => l.statementIds), keyPoints: lessons.flatMap(l => l.keyPoints) };
     }),
-  };
+  });
 }
 
 function checkPart(draft: AnalysisDraft, part: SourcePart, statementBudget: number, keyPointBudget: number, catalog: AnalysisDraft["concepts"]) {
+  draft = resolveDraftConcepts(draft, catalog);
   const topicIds = new Set(part.topics.map(t => t.id));
   if (draft.topics.length !== part.topics.length || new Set(draft.topics.map(t => t.id)).size !== topicIds.size ||
       draft.topics.some(t => !part.topics.some(p => p.id === t.id && p.title === t.title)) || draft.statements.some(s => !topicIds.has(s.topicId)) ||
@@ -55,10 +59,9 @@ function checkPart(draft: AnalysisDraft, part: SourcePart, statementBudget: numb
   if (draft.statements.some(s => !s.evidence.some(e => part.topics.find(t => t.id === s.topicId)!.blockIds.includes(e.blockId)))) draftFailure("A statement must have evidence from its assigned semantic section, not only a neighboring topic.");
   if (draft.statements.length > statementBudget || draft.lessonSections.some(l => l.keyPoints.length > keyPointBudget) ||
       canonicalConcepts([...catalog, ...draft.concepts.filter(c => !catalog.some(k => k.id === c.id))]).length > 100) draftFailure("Part output exceeds the remaining document graph budget. Do not silently omit claims; this source may require a smaller scope.");
-  namespacePart(draft, part, catalog); // Reject changed catalog identities before repair/acceptance.
   // Reused explicit ID/name/symbol retains its established record. Alias omissions
   // or suggestions do not redefine it or get adopted into the canonical catalog.
-  draft.concepts = draft.concepts.map(c => catalog.find(k => k.id === c.id) ? structuredClone(catalog.find(k => k.id === c.id)!) : c);
+  return draft;
 }
 
 export function validateSectionRequest(raw: unknown) {
@@ -80,9 +83,9 @@ export function validateSectionRequest(raw: unknown) {
     const c = value as CompletedPart, part = plan[i];
     if (c.partId !== part.id || !Number.isInteger(c.calls) || c.calls < 1 || c.calls > 2) return invalid("Checkpoint parts must form an ordered prefix of this source plan.");
     if (c.sourceHash !== sourceHash(request)) return invalid("Completed parts belong to a different source or output language. Reimport the changed source.");
-    const draft = parseDraft(JSON.stringify(c.draft));
+    let draft = parseDraft(JSON.stringify(c.draft));
     const catalog = mergePartDrafts(completed).concepts;
-    checkPart(draft, part, 120, 20, catalog);
+    draft = checkPart(draft, part, 120, 20, catalog);
     if (draft.statements.some(s => !s.id.startsWith(`${part.id}:`)) || draft.concepts.some(c => !catalog.some(k => k.id === c.id) && !c.id.startsWith(`${part.id}:`))) return invalid("Invalid checkpoint ID namespace.");
     normalizeAnalysisDraft({ ...request.importedSource, document: { ...request.importedSource.document, blocks: request.importedSource.document.blocks.filter(b => part.blockIds.includes(b.id)) } }, draft);
     completed.push({ partId: c.partId, calls: c.calls, sourceHash: c.sourceHash, draft });
@@ -127,7 +130,7 @@ export async function analyzeNextPart(state: ReturnType<typeof validateSectionRe
         prompt: base => JSON.stringify({ ...JSON.parse(base), section: { topicId: part.topicId, title: part.title,
           topics: part.topics, canonicalConcepts: catalog, statementBudget, keyPointBudget,
           previousTopicContext: merged.lessonSections.find(l => l.topicId === part.topicId)?.summary.slice(-1_000) ?? "",
-          instruction: "Extract only these blocks into the supplied topics, with a lesson for each. A technical part is not a new topic. Include USED canonical concepts, reusing IDs/names/symbols only for the same meaning. New concepts use new local IDs; identical spelling alone does not establish identical meaning. Keep established aliases. Return concise summaries/keyPoints and short exact evidence clauses. Never use omission markers inside quotes. Keep all source block IDs/dispositions. Respect the remaining document budgets; never intentionally omit supported claims to fit them." } }),
+          instruction: "Extract only these blocks into the supplied topics, with a lesson for each. A technical part is not a new topic. Reuse exact canonical IDs for the same meaning; their established records may be omitted from concepts because backend resolves the supplied catalog. Return records for every NEW concept with new local IDs; identical spelling alone does not establish identical meaning. Never redefine established names, symbols or aliases. Return concise summaries/keyPoints and short exact evidence clauses. Never use omission markers inside quotes. Keep all source block IDs/dispositions. Respect the remaining document budgets; never intentionally omit supported claims to fit them." } }),
       },
     });
     if (!accepted) throw new AnalysisError("ANALYSIS_FAILED", 500, "Part completed without a validated draft.");

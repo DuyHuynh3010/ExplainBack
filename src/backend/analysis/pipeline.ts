@@ -44,7 +44,7 @@ export interface AnalysisRunOptions {
   callTimeoutMs?: number; totalTimeoutMs?: number; retryDelayMs?: number;
   diagnostic?: AnalysisDiagnostic; capture?: CaptureAnalysis; maxCalls?: number;
   /** Server-created part context, never accepted directly from a public request. */
-  scope?: { blockIds: string[]; prompt: (base: string) => string; check: (draft: AnalysisDraft) => void; schema?: typeof ANALYSIS_DRAFT_SCHEMA; systemInstruction?: string };
+  scope?: { blockIds: string[]; prompt: (base: string) => string; check: (draft: AnalysisDraft) => AnalysisDraft | void; schema?: typeof ANALYSIS_DRAFT_SCHEMA; systemInstruction?: string };
 }
 /** Inject providers for tests; the HTTP route only creates the real Gemini provider. */
 export async function analyzeImportedSource(input: unknown, provider: AnalysisProvider, options: AnalysisRunOptions = {}): Promise<SourceAnalysis> {
@@ -77,7 +77,7 @@ export async function analyzeImportedSource(input: unknown, provider: AnalysisPr
       if (result.finishReason !== "stop") throw new AnalysisError("ANALYSIS_FAILED", 422, "AI did not complete a usable source analysis.");
       stage = "draft_validation";
       draft = localRepair ? mergeStatementRepair(result.text, localRepair) : parseDraft(result.text);
-      options.scope?.check(draft);
+      draft = options.scope?.check(draft) ?? draft;
       diagnostic?.({ stage, call: attempt + 1, validation: "passed" });
       stage = "domain_validation";
       const analysis = normalizeAnalysisDraft(request.importedSource, draft, candidate => { normalized = candidate; });

@@ -38,6 +38,25 @@ const mock = responses => {
 const run = (request, provider, options = {}) => analyzeImportedSource(request, provider, { retryDelayMs: 0, ...options });
 const code = value => error => error.code === value;
 
+test("source initial and bounded repair receive 16,384 tokens; endpoint budgets/timeouts stay separate", async () => {
+  const request = input(), provider = mock([{ text: "not JSON", finishReason: "stop" }, done(draft(request.importedSource))]);
+  await run(request, provider);
+  assert.equal(provider.calls.length, 2);
+  assert.ok(provider.calls.every(c => c.maxOutputTokens === 16_384));
+  assert.equal(L.outputCharacters, 100_000); assert.equal(L.requestBytes, 1_000_000);
+  assert.equal(L.callTimeoutMs, 60_000); assert.equal(L.totalTimeoutMs, 122_000);
+  const { EXPLANATION_LIMITS } = require("../../test-results/analysis-build/backend/contracts/explanation-limits.js");
+  assert.equal(EXPLANATION_LIMITS.outputTokens, 8192);
+  assert.equal(EXPLANATION_LIMITS.evaluationOutputTokens, 16384);
+});
+test("analysis HTTP rejects even parseable MAX_TOKENS output with 502 and no second generation", async () => {
+  const request = input(), provider = mock([{ text: JSON.stringify(draft(request.importedSource)), finishReason: "truncated" }]);
+  const response = await handleAnalysisRequest(new Request("http://local/api/analysis", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(request) }), () => provider);
+  const body = await response.json();
+  assert.equal(response.status, 502); assert.equal(body.error.code, "AI_OUTPUT_TRUNCATED");
+  assert.equal(body.ok, false); assert.equal(body.data, undefined); assert.equal(provider.calls.length, 1);
+});
+
 test("valid source preserves input, maps IDs, links lessons and validates full response", async () => {
   const request = input(); const before = structuredClone(request);
   const provider = mock([done(draft(request.importedSource))]);

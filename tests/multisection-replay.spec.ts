@@ -61,12 +61,13 @@ test("synthetic document-wide fixture: topic switching, summaries, endpoints and
   });
   await page.getByRole("button", { name: "Write your explanation" }).click();
   await page.getByLabel("Explanation text").fill(learner);
-  await page.getByRole("button", { name: "Evaluate", exact: true }).click();
-  await expect(page.getByRole("heading", { name: "Your explanation feedback", level: 1 })).toBeVisible();
+  await page.getByRole("button", { name: "Create explanation graph", exact: true }).click();
+  await expect(page.getByRole("heading", { name: "Explanation graph", exact: true })).toBeVisible();
+  await page.getByRole("button", { name: "Compare", exact: true }).click();
   await page.getByLabel("Topic", { exact: true }).selectOption(joint.topicId);
-  const card = page.getByRole("article", { name: "Complex statement", exact: true });
-  await expect(card).toContainText("Partial");
-  await card.getByRole("button", { name: "Inspect statement evidence" }).click();
+  const row = page.locator(`[data-statement-id="${joint.id}"]`);
+  await expect(row).toContainText("Partial");
+  await row.click();
   await expect(page.getByRole("article", { name: "Explanation feedback" })).toContainText(learner);
   await expect(page.getByRole("complementary", { name: "Source relationship details" })).toContainText(joint.assertion);
   await page.locator(".map-card").screenshot({ path: "test-results/graph-v2/complex-feedback.png" });

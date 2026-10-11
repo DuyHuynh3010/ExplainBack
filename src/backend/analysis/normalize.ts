@@ -2,13 +2,15 @@ import { randomUUID } from "node:crypto";
 import type { AnalysisWarning, Concept, Evidence, ImportedSource, SourceAnalysis, Statement } from "../contracts/domain";
 import { validateSourceAnalysis } from "../contracts/validate";
 import { locateQuote } from "./evidence";
-import { referencedConceptIds } from "../contracts/graph";
+import { referencedConceptIds, remapRepresentation } from "../contracts/graph";
 import { inspectStatement, inspectRepeatedAssertions } from "../contracts/statement-quality";
 import { ANALYSIS_LIMITS } from "./limits";
 import type { AnalysisDraft } from "./draft";
 import { AnalysisError, DraftError, type DraftIssue } from "./errors";
 import { checkDraftReferences } from "./draft-references";
 import { reviewExtraction } from "./review";
+import { canonicalConcepts, resolveDraftConcepts } from "./concept-catalog";
+export { canonicalConcepts } from "./concept-catalog";
 
 function fail(message: string, path = "$", code: DraftIssue["code"] = "invariant", ids?: Record<string, string>): never { throw new DraftError(message, [{ path, code, message, ...(ids ? { ids } : {}) }]); }
 function uniqueIds<T extends { id: string }>(items: T[], path: string): Map<string, T> {
@@ -30,19 +32,8 @@ export function isExplicitQuestionText(text: string): boolean {
 }
 
 /** Canonical draft ID is identity. Distinct IDs remain distinct even with identical labels. */
-export function canonicalConcepts(concepts: AnalysisDraft["concepts"]): AnalysisDraft["concepts"] {
-  const records = new Map<string, AnalysisDraft["concepts"][number]>();
-  for (const [i, concept] of concepts.entries()) {
-    const previous = records.get(concept.id);
-    const signature = (c: typeof concept) => JSON.stringify([c.name, [...new Set(c.aliases)].sort(), c.symbol]);
-    if (previous && signature(previous) !== signature(concept)) fail("Conflicting records for one canonical concept ID.", `$.concepts[${i}].id`, "invariant", { conceptId: concept.id });
-    if (!previous) records.set(concept.id, concept);
-  }
-  return [...records.values()];
-}
-
 export function normalizeAnalysisDraft(source: ImportedSource, draft: AnalysisDraft, observe?: (candidate: SourceAnalysis) => void): SourceAnalysis {
-  draft = { ...draft, concepts: canonicalConcepts(draft.concepts) };
+  draft = resolveDraftConcepts(draft);
   const blocks = new Map(source.document.blocks.map(b => [b.id, b]));
   const dispositions = new Map<string, AnalysisDraft["blockDispositions"][number]["kind"]>();
   for (const [i, disposition] of draft.blockDispositions.entries()) {
@@ -83,9 +74,7 @@ export function normalizeAnalysisDraft(source: ImportedSource, draft: AnalysisDr
   for (const [statementIndex, statement] of draft.statements.entries()) {
     const topicId = reference(topicIds, statement.topicId);
     const r = statement.representation;
-    const representation = r.kind === "binary"
-      ? { kind: "binary" as const, subjectConceptId: reference(conceptIds, r.subjectConceptId), relation: r.relation, objectConceptId: reference(conceptIds, r.objectConceptId) }
-      : { kind: "complex" as const, participants: r.participants.map(p => ({ conceptId: reference(conceptIds, p.conceptId), role: p.role })) };
+    const representation = remapRepresentation(r, id => reference(conceptIds, id));
     const evidenceIds: string[] = [];
     for (const [evidenceIndex, item] of statement.evidence.entries()) {
       const path = `$.statements[${statementIndex}].evidence[${evidenceIndex}]`;

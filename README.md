@@ -1,5 +1,8 @@
 # ExplainBack
 
+[Lesson / Explanation / Compare](docs/lesson-explanation-compare.md) shows independent
+learner claims and a combined comparison canvas using cached evaluation results.
+
 [Multi-section source analysis](docs/topic-processing.md) implements bounded sequential
 processing, local retry checkpoints and topic graph/summary switching on contract 2.0.
 
@@ -10,7 +13,8 @@ An educational workspace that imports text/PDF/DOCX, analyzes sources through Ge
 Read the [GitHub Workflow & Team Rules (PDF)](docs/github-workflow-and-team-rules.pdf) for the project's collaboration workflow and team rules. The original PDF is included in the repository and is available after cloning.
 
 The current [graph/API contract is v2](docs/backend-contract-v2.md): document-wide
-concepts, binary relationships and complex statement cards. Reset/re-import v1
+concepts, binary relationships and complex statements. The [linked canvas](docs/graph-visualization.md)
+shows complex relation nodes with participant roles and retains full evidence in the details panel. Reset/re-import v1
 sessions. See [verification results and remaining live extraction gaps](docs/graph-v2-verification.md)
 before treating a generated graph as verified knowledge.
 

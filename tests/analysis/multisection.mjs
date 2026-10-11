@@ -74,9 +74,9 @@ test("global identity, safe split, complex participants and source order survive
     const flow = toReferenceFlow(result.graph, topic.id);
     assert.ok(flow.nodes.some(n => n.id === `${result.graph.id}:${glucose.id}`));
     const selected = result.graph.statements.filter(s => s.topicId === topic.id);
-    assert.equal(flow.edges.length, selected.filter(s => s.representation.kind === "binary").length);
+    assert.equal(flow.edges.length, selected.reduce((n, s) => n + (s.representation.kind === "binary" ? 1 : s.representation.participants.length), 0));
     const used = new Set(selected.flatMap(s => s.representation.kind === "binary" ? [s.representation.subjectConceptId, s.representation.objectConceptId] : s.representation.participants.map(p => p.conceptId)));
-    assert.equal(flow.nodes.length, used.size);
+    assert.equal(flow.nodes.length, used.size + selected.filter(s => s.representation.kind === "complex").length);
   }
   assert.equal(result.graph.statements.filter(s => s.representation.kind === "complex").length, 1);
   assert.equal(validateSourceAnalysis(result).valid, true);

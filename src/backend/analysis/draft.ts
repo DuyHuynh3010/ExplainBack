@@ -25,6 +25,7 @@ export interface AnalysisDraft {
 }
 
 export interface JsonRule {
+  description?: string;
   type?: "object" | "array" | "string" | "boolean";
   anyOf?: JsonRule[];
   properties?: Record<string, JsonRule>;
@@ -41,8 +42,10 @@ export const obj = (properties: Record<string, JsonRule>, optional: string[] = [
   type: "object", properties, required: Object.keys(properties).filter(k => !optional.includes(k)), additionalProperties: false,
 });
 export const REPRESENTATION_SCHEMA: JsonRule = { anyOf: [
-  obj({ kind: { type: "string", enum: ["binary"] }, subjectConceptId: text, relation: text, objectConceptId: text }),
-  obj({ kind: { type: "string", enum: ["complex"] }, participants: list(obj({ conceptId: text, role: text }), 20, 1) }),
+  { ...obj({ kind: { type: "string", enum: ["complex"] }, participants: list(obj({ conceptId: text, role: text }), 20, 1) }),
+    description: "A claim whose quantifier scope, conditions, alternative/joint objects or several predicates cannot be completely expressed by one binary relation. Include every essential entity, expression or value with its actual role." },
+  { ...obj({ kind: { type: "string", enum: ["binary"] }, subjectConceptId: text, relation: text, objectConceptId: text }),
+    description: "One complete subject-predicate-object claim. Endpoints must denote the actual subject and object/property/value. Never use subject ID as a placeholder for a missing object or encode only part of a complex claim." },
 ] };
 export const CONCEPT_SCHEMA = obj({ id: text, name: text, aliases: list(text, 20), symbol: text }, ["symbol"]);
 /** Full runtime schema. Gemini receives the same shape without array bounds;
@@ -75,7 +78,7 @@ export function matches(value: unknown, rule: JsonRule): boolean {
 }
 
 /** Explain structural failure with schema paths, never quote/field contents. */
-function schemaIssues(value: unknown, rule: JsonRule, path = "$"): DraftIssue[] {
+export function schemaIssues(value: unknown, rule: JsonRule, path = "$"): DraftIssue[] {
   if (matches(value, rule)) return [];
   const issue = (message: string): DraftIssue[] => [{ path, code: "shape", message }];
   if (rule.anyOf) {

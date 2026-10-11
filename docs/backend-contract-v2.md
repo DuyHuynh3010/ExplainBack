@@ -1,5 +1,13 @@
 # Graph contract v2: document-wide concepts and statement views
 
+The [frontend visualization update](graph-visualization.md) renders complex
+statements as relation nodes with role connections. It preserves this domain
+contract and the original statement-based evaluation counts.
+
+[Lesson / Explanation / Compare](lesson-explanation-compare.md) adds optional v2
+concept identity alignments to the existing evaluation response. Legacy responses
+remain valid; unmatched/uncertain identities are never merged by label similarity.
+
 The [multi-section follow-up](topic-processing.md) adds opt-in sequential extraction
 and checkpoints without changing the final graph/evaluation contract. Its document-wide
 limits remain those below; the eight-generation orchestration budget supplements the

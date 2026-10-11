@@ -61,7 +61,9 @@ for (const [name, text, build] of [["biology", representationSource, representat
       assert.ok(s.conditions.some(c => /some/i.test(c)));
       const flow = toReferenceFlow(analysis.graph, s.topicId);
       for (const p of s.representation.participants) assert.ok(flow.nodes.some(n => n.id === `${analysis.graph.id}:${p.conceptId}`));
-      assert.ok(!flow.edges.some(e => e.id === s.id)); // Joint claims remain cards.
+      assert.ok(!flow.edges.some(e => e.id === s.id)); // Role connections are not invented binary claims.
+      assert.equal(flow.edges.filter(e => e.data.referenceStatementId === s.id).length, s.representation.participants.length);
+      assert.ok(flow.nodes.some(n => n.data.referenceStatementId === s.id));
     }
     if (name === "biology") {
       for (const phrase of ["Water loses electrons", "Carbon dioxide gains electrons", "Plants take in water", "Plants take in carbon dioxide"]) {

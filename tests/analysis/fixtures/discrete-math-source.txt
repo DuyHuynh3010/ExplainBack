@@ -1,0 +1,33 @@
+Propositional logic
+
+A proposition is a declarative statement that has exactly one truth value: true or false. Questions and commands are not propositions.
+
+For propositions p and q, the conjunction p AND q is true exactly when both propositions are true. The disjunction p OR q is inclusive: it is true when at least one proposition is true, including when both are true.
+
+The implication p implies q is false exactly when p is true and q is false. In every other case it is true. The implication is logically equivalent to NOT p OR q.
+
+The contrapositive of p implies q is NOT q implies NOT p. An implication and its contrapositive are logically equivalent. The converse, q implies p, is not generally equivalent to the original implication.
+
+De Morgan's laws state that NOT (p AND q) is equivalent to (NOT p) OR (NOT q), while NOT (p OR q) is equivalent to (NOT p) AND (NOT q).
+
+Quantifiers
+
+The statement "for every x in D, P(x)" is true when P(x) holds for every element of the domain D. The statement "there exists x in D such that P(x)" is true when at least one element of D satisfies P(x).
+
+Negating a universal statement produces an existential statement with a negated predicate: NOT (for every x, P(x)) is equivalent to there exists x such that NOT P(x). Negating an existential statement produces a universal statement with a negated predicate.
+
+The order of quantifiers can change the meaning of a statement. Over the integers, "for every x there exists y such that y > x" is true, because y can be chosen as x + 1. However, "there exists y such that for every x, y > x" is false, because there is no integer larger than every integer.
+
+Sets and functions
+
+The union A union B contains elements that belong to A, to B, or to both. The intersection A intersection B contains exactly the elements that belong to both sets. The difference A minus B contains elements in A that are not in B. This operation is not generally symmetric.
+
+For finite sets, the inclusion-exclusion formula is:
+|A union B| = |A| + |B| - |A intersection B|.
+The intersection is subtracted because its elements were counted twice.
+
+A function f from A to B assigns exactly one element of B to every element of A. Different inputs are allowed to have the same output.
+
+A function is injective when distinct inputs have distinct outputs. A function is surjective when every element of its codomain is the output of at least one input. A function is bijective when it is both injective and surjective.
+
+For finite sets, a bijection between A and B implies that |A| = |B|. Equal cardinalities alone do not imply that a particular function from A to B is bijective.

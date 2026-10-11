@@ -9,7 +9,9 @@ export const ANALYSIS_LIMITS = {
   evidencePerStatement: 4,
   keyPointsPerTopic: 20,
   outputCharacters: 100_000,
-  outputTokens: 8_192,
+  // Source JSON hit MAX_TOKENS at 8,192; verified model metadata supports 16,384.
+  // The independent JSON character and aggregate graph limits still apply.
+  outputTokens: 16_384,
   maxCalls: 2,
   // SDK sends this as X-Server-Timeout as well as using it for transport.
   // A real short extraction hit the former 25-second upstream deadline.
