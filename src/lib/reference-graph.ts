@@ -35,10 +35,12 @@ export function referenceRelationshipLabel(statement: Statement, concepts: Conce
 }
 
 /** Domain identities stay intact; complex role connections are visual, not new statements. */
-export function toReferenceFlow(graph: KnowledgeGraph, topicId: string, _options: { columns?: number } = {}): { nodes: ReferenceNode[]; edges: ReferenceEdge[] } {
+export function toReferenceFlow(graph: KnowledgeGraph, topicId: string, options: { columns?: number; includeIsolated?: boolean } = {}): { nodes: ReferenceNode[]; edges: ReferenceEdge[] } {
   const selected = graph.statements.filter(s => s.topicId === topicId);
   const visible = new Set(selected.flatMap(s => referencedConceptIds(s.representation)));
-  const concepts = graph.concepts.filter(c => visible.has(c.id));
+  // A readable concepts-only result still has graph content to display. No
+  // statement, membership or relationship is invented to connect these nodes.
+  const concepts = graph.concepts.filter(c => visible.has(c.id) || (options.includeIsolated ?? !graph.statements.length));
   const statements = selected.flatMap(s => s.representation.kind === "binary" ? [{ ...s, ...s.representation }] : []);
   const nodeId = (id: string) => `${graph.id}:${id}`;
   const nodes: ReferenceNode[] = concepts.map(concept => ({

@@ -1,5 +1,10 @@
 # ExplainBack - Transcription and evaluation (Blocks 3B/3C)
 
+Current evaluation default: [nonblocking graph output](nonblocking-output.md).
+Readable learner claims are retained without quality rejection or repair; usable
+comparisons keep AI verdicts. The earlier validation/repair behavior below is
+historical. Transcription and input/service boundaries are unchanged.
+
 Current graph/API contract: [v2 migration and architecture](backend-contract-v2.md).
 
 Current product flow: [Lesson / Explanation / Compare](lesson-explanation-compare.md).

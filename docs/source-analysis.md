@@ -1,5 +1,10 @@
 # ExplainBack - Source analysis (Block 3A)
 
+Current default: [nonblocking graph output](nonblocking-output.md). Readable AI data
+is normalized for display without quality repair/rejection. Quality gates, repair
+and warnings described below document the earlier implementation and are superseded
+by that page; input/service limits remain in force.
+
 Current graph/API contract: [v2 migration and architecture](backend-contract-v2.md).
 
 For the implemented multi-section sequential web flow, checkpoint protocol and limits,

@@ -88,22 +88,28 @@ test("oversized plans and malformed checkpoints fail before provider configurati
   }
 });
 
-test("resume rejects forged evidence, topic IDs, changed concept meaning, wrong source and hidden extra fields", async () => {
+test("resume normalizes AI quality defects but rejects wrong source and hidden checkpoint fields", async () => {
   const s = source(), first = await analyzeNextPart(validateSectionRequest(input(s)), provider([]));
   for (const mutate of [
     p => p.draft.statements[0].evidence[0].quote = "Invented quote",
     p => p.draft.topics[0].id = "wrong",
     p => p.draft.blockDispositions[0].blockId = "foreign",
-    p => p.sourceHash = "0".repeat(64),
-    p => p.extra = "hidden",
   ]) {
+    const part = structuredClone(first.data.part); mutate(part);
+    const state = validateSectionRequest(input(s, [part], 1));
+    assert.deepEqual(state.completed[0].draft.statements.map(c => c.assertion), part.draft.statements.map(c => c.assertion));
+  }
+  for (const mutate of [p => p.sourceHash = "0".repeat(64), p => p.extra = "hidden"]) {
     const part = structuredClone(first.data.part); mutate(part);
     assert.throws(() => validateSectionRequest(input(s, [part], 1)));
   }
   const seen = [], second = await analyzeNextPart(validateSectionRequest(input(s, [first.data.part], 1)), provider(seen));
   const part = structuredClone(second.data.part), known = first.data.part.draft.concepts.find(c => c.name === "Photosynthesis");
   part.draft.concepts.push({ ...known, name: "Different meaning" });
-  assert.throws(() => validateSectionRequest(input(s, [first.data.part, part], 2)));
+  const state = validateSectionRequest(input(s, [first.data.part, part], 2));
+  assert.deepEqual(state.completed[0].draft, first.data.part.draft);
+  assert.equal(state.completed[1].draft.concepts.find(c => c.id === known.id).name, known.name);
+  assert.ok(state.completed[1].draft.concepts.some(c => c.name === "Different meaning" && c.id !== known.id));
 });
 
 test("explicit canonical reuse keeps established aliases; omitted/new suggestions never redefine the catalog", async () => {
@@ -117,7 +123,7 @@ test("explicit canonical reuse keeps established aliases; omitted/new suggestion
   draft.concepts[0] = { ...known, id: "distinct-local-id" };
   draft.statements = []; draft.lessonSections = [];
   const distinct = namespacePart(draft, part, catalog);
-  assert.notEqual(distinct.concepts[0].id, known.id);
+  assert.ok(distinct.concepts.some(c => c.name === known.name && c.id !== known.id));
 });
 
 test("multiple technical parts of one topic retain one topic and bounded merged lessons", async () => {

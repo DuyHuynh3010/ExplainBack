@@ -1,5 +1,10 @@
 # Lesson, Explanation and Compare
 
+[Default nonblocking graph output](nonblocking-output.md) now retains readable AI
+claims despite quality issues. Unclassified claims appear as Not compared; invalid
+optional concept mappings are removed rather than blocking the response. View,
+layout, selection, fullscreen and cached topic switching behavior below is unchanged.
+
 The graph explorer now has three distinct views. Lesson displays the neutral source
 graph and summaries. Explanation displays only statements actually extracted from
 the submitted learner text. Compare builds one combined graph and runs one ELK

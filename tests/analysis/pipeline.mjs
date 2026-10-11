@@ -10,7 +10,7 @@ const { handleAnalysisRequest } = require("../../test-results/analysis-build/bac
 const { createGeminiProvider } = require("../../test-results/analysis-build/backend/analysis/gemini.js");
 const { AnalysisError } = require("../../test-results/analysis-build/backend/analysis/errors.js");
 const { ANALYSIS_LIMITS: L } = require("../../test-results/analysis-build/backend/analysis/limits.js");
-const { validateSourceAnalysis, validateImportedAnalysisResponse } = require("../../test-results/analysis-build/backend/contracts/validate.js");
+const { validateSourceAnalysis, validateImportedAnalysisResponse, validateDisplayImportedAnalysisResponse } = require("../../test-results/analysis-build/backend/contracts/validate.js");
 const text = "🌱 Plants do not release oxygen unless the specified condition holds.";
 const input = (raw = text) => ({ schemaVersion: "2.0", importedSource: importText(raw) });
 const draft = source => ({
@@ -38,10 +38,10 @@ const mock = responses => {
 const run = (request, provider, options = {}) => analyzeImportedSource(request, provider, { retryDelayMs: 0, ...options });
 const code = value => error => error.code === value;
 
-test("source initial and bounded repair receive 16,384 tokens; endpoint budgets/timeouts stay separate", async () => {
-  const request = input(), provider = mock([{ text: "not JSON", finishReason: "stop" }, done(draft(request.importedSource))]);
+test("source generation receives 16,384 tokens without repair; endpoint budgets/timeouts stay separate", async () => {
+  const request = input(), provider = mock([done(draft(request.importedSource))]);
   await run(request, provider);
-  assert.equal(provider.calls.length, 2);
+  assert.equal(provider.calls.length, 1);
   assert.ok(provider.calls.every(c => c.maxOutputTokens === 16_384));
   assert.equal(L.outputCharacters, 100_000); assert.equal(L.requestBytes, 1_000_000);
   assert.equal(L.callTimeoutMs, 60_000); assert.equal(L.totalTimeoutMs, 122_000);
@@ -49,12 +49,13 @@ test("source initial and bounded repair receive 16,384 tokens; endpoint budgets/
   assert.equal(EXPLANATION_LIMITS.outputTokens, 8192);
   assert.equal(EXPLANATION_LIMITS.evaluationOutputTokens, 16384);
 });
-test("analysis HTTP rejects even parseable MAX_TOKENS output with 502 and no second generation", async () => {
+test("analysis HTTP renders readable MAX_TOKENS output without a second generation", async () => {
   const request = input(), provider = mock([{ text: JSON.stringify(draft(request.importedSource)), finishReason: "truncated" }]);
   const response = await handleAnalysisRequest(new Request("http://local/api/analysis", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(request) }), () => provider);
   const body = await response.json();
-  assert.equal(response.status, 502); assert.equal(body.error.code, "AI_OUTPUT_TRUNCATED");
-  assert.equal(body.ok, false); assert.equal(body.data, undefined); assert.equal(provider.calls.length, 1);
+  assert.equal(response.status, 200); assert.equal(body.ok, true);
+  assert.equal(body.data.graph.statements[0].assertion, text);
+  assert.equal(validateDisplayImportedAnalysisResponse(request, body).valid, true); assert.equal(provider.calls.length, 1);
 });
 
 test("valid source preserves input, maps IDs, links lessons and validates full response", async () => {
@@ -102,7 +103,7 @@ test("ambiguous repeated quote is unverified with no arbitrary charRange", async
   const result = await run(request, mock([done(value)]));
   assert.equal(result.graph.evidence[0].verification, "unverified");
   assert.equal(result.graph.evidence[0].location, undefined);
-  assert.equal(result.analysisWarnings[0].code, "AMBIGUOUS_EVIDENCE");
+  assert.deepEqual(result.analysisWarnings, []);
 });
 
 test("exact adjacent context uniquely locates a repeated quote", async () => {
@@ -132,11 +133,19 @@ const badDrafts = [
   ["obsolete concept topic ownership", d => { d.topics.push({ id: "other", title: "Other" }); d.concepts[0].topicId = "other"; }],
   ["question block used as evidence", d => { d.blockDispositions[0].kind = "questions"; }],
 ];
-for (const [name, mutate] of badDrafts) test(`rejects ${name}, retries only once`, async () => {
+for (const [name, mutate] of badDrafts) test(`normalizes ${name} without repair or losing assertions`, async () => {
   const request = input(); const value = draft(request.importedSource); mutate(value);
   const provider = mock([done(value)]);
-  await assert.rejects(run(request, provider), code("AI_OUTPUT_INVALID"));
-  assert.equal(provider.calls.length, L.maxCalls);
+  const result = await run(request, provider);
+  assert.equal(validateDisplayImportedAnalysisResponse(request, { ok: true, schemaVersion: "2.0", data: result }).valid, true);
+  assert.deepEqual(result.graph.statements.map(s => s.assertion), value.statements.map(s => s.assertion));
+  assert.equal(new Set(result.graph.statements.map(s => s.id)).size, result.graph.statements.length);
+  if (name === "unknown subject") assert.equal(result.graph.statements[0].representation.kind, "complex");
+  if (name === "invented quote" || name === "unknown evidence block") {
+    assert.equal(result.graph.evidence[0].verification, "unverified"); assert.equal(result.graph.evidence[0].location, undefined);
+  }
+  if (name === "unknown summary statement") assert.deepEqual(result.lessonSections[0].statementIds, []);
+  assert.equal(provider.calls.length, 1);
 });
 
 test("exact duplicates are remapped without fuzzy concept merging", async () => {
@@ -146,35 +155,37 @@ test("exact duplicates are remapped without fuzzy concept merging", async () => 
   value.statements.push({ ...structuredClone(value.statements[0]), id: "statement-copy", representation: { ...value.statements[0].representation } });
   value.lessonSections[0].statementIds.push("statement-copy");
   const result = await run(request, mock([done(value)]));
-  assert.equal(result.graph.concepts.length, 3);
-  assert.equal(result.graph.statements.length, 1);
-  assert.equal(result.lessonSections[0].statementIds.length, 1);
+  assert.equal(result.graph.concepts.length, 4);
+  assert.equal(result.graph.statements.length, 2);
+  assert.equal(result.lessonSections[0].statementIds.length, 2);
+  assert.equal(new Set(result.graph.concepts.map(c => c.id)).size, 4);
 });
 
-test("invalid JSON can be repaired with one bounded complete regeneration", async () => {
+test("unreadable JSON fails without quality repair or exposing input in diagnostics", async () => {
   const request = input(); const provider = mock([{ text: "{", finishReason: "stop" }, done(draft(request.importedSource))]);
   const events = [];
-  await run(request, provider, { diagnostic: event => events.push(event) });
-  assert.equal(provider.calls.length, 2);
-  assert.equal(JSON.parse(provider.calls[1].prompt).repair.error, "AI output must be valid JSON.");
-  assert.deepEqual(events.filter(e => e.stage === "call_start").map(e => e.purpose), ["initial", "repair"]);
+  await assert.rejects(run(request, provider, { diagnostic: event => events.push(event) }), code("AI_OUTPUT_INVALID"));
+  assert.equal(provider.calls.length, 1);
+  assert.deepEqual(events.filter(e => e.stage === "call_start").map(e => e.purpose), ["initial"]);
   assert.equal(events.find(e => e.stage === "call_failed").failedStage, "draft_validation");
-  assert.equal(events.at(-1).validation, "passed");
+  assert.ok(events.some(e => e.stage === "call_failed"));
   assert.equal(JSON.stringify(events).includes(request.importedSource.normalizedText), false);
 });
 
-for (const finishReason of ["truncated", "blocked"]) test(`${finishReason} output fails without another paid call`, async () => {
-  const provider = mock([{ text: "{}", finishReason }]);
-  await assert.rejects(run(input(), provider), code(finishReason === "truncated" ? "AI_OUTPUT_TRUNCATED" : "ANALYSIS_FAILED"));
+for (const finishReason of ["truncated", "blocked"]) test(`readable ${finishReason} output renders without another paid call`, async () => {
+  const request = input(), provider = mock([{ text: JSON.stringify(draft(request.importedSource)), finishReason }]);
+  const result = await run(request, provider); assert.equal(result.graph.statements[0].assertion, text);
   assert.equal(provider.calls.length, 1);
 });
 
-test("output size and collection ceilings reject without accepting partial results", async () => {
+test("unreadable output still fails, but AI collection quality ceilings do not discard readable results", async () => {
   const provider = mock([{ text: "x".repeat(L.outputCharacters + 1), finishReason: "stop" }]);
   await assert.rejects(run(input(), provider), code("AI_OUTPUT_INVALID"));
   const request = input(); const value = draft(request.importedSource);
   value.topics = Array.from({ length: L.topics + 1 }, (_, i) => ({ id: `t${i}`, title: "Topic" }));
-  await assert.rejects(run(request, mock([done(value)])), code("AI_OUTPUT_INVALID"));
+  const result = await run(request, mock([done(value)]));
+  assert.ok(result.graph.topics.length >= L.topics + 1);
+  assert.equal(result.graph.statements[0].assertion, text);
 });
 
 test("timeout aborts even a provider ignoring cancellation and is not retried", async () => {
@@ -207,18 +218,18 @@ test("explicit questions-only source is rejected before provider call", async ()
   assert.equal(provider.calls.length, 0);
 });
 
-test("exercise-only extraction returns an error rather than fabricated knowledge", async () => {
+test("readable empty extraction returns an empty graph without fabricated knowledge", async () => {
   const request = input("Calculate the answer using the supplied exercise.");
   const value = { blockDispositions: [{ blockId: request.importedSource.document.blocks[0].id, kind: "questions" }], topics: [], concepts: [], statements: [], lessonSections: [] };
   const provider = mock([done(value)]);
-  await assert.rejects(run(request, provider), code("NO_EXTRACTABLE_KNOWLEDGE")); assert.equal(provider.calls.length, 1);
+  const result = await run(request, provider); assert.deepEqual(result.graph.statements, []); assert.equal(provider.calls.length, 1);
 });
 
-test("mixed source retains question warning without generating an answer", async () => {
+test("mixed source retains readable claims without adding review warnings or generating an answer", async () => {
   const request = input(`${text}\n\nWhy does this happen?`); const value = draft(request.importedSource);
   value.blockDispositions[1].kind = "questions"; value.statements.pop(); value.lessonSections[0].statementIds.pop();
   const result = await run(request, mock([done(value)]));
-  assert.equal(result.graph.statements.length, 1); assert.equal(result.analysisWarnings[0].code, "QUESTIONS_PRESENT");
+  assert.equal(result.graph.statements.length, 1); assert.deepEqual(result.analysisWarnings, []);
 });
 
 const invalidInputs = [

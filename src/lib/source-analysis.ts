@@ -1,6 +1,6 @@
 import type { AnalyzeImportedSourceRequest } from "@/backend/contracts/api";
 import type { ImportedSource, SourceAnalysis } from "@/backend/contracts/domain";
-import { validateImportedAnalysisResponse } from "@/backend/contracts/validate";
+import { validateDisplayImportedAnalysisResponse } from "@/backend/contracts/validate";
 import { planSourceParts, SECTION_LIMITS, type CompletedPart, type PartProgress } from "@/backend/analysis/sections";
 
 export interface AnalysisCheckpoint { completedParts: CompletedPart[]; callsUsed: number }
@@ -39,7 +39,7 @@ export async function analyzeLearningSource(importedSource: ImportedSource, sign
     continue;
   }
   const result: unknown = raw && typeof raw === "object" ? { ok: raw.ok, schemaVersion: raw.schemaVersion, ...(raw.ok ? { data: raw.data } : { error: raw.error }) } : raw;
-  const validation = validateImportedAnalysisResponse(request, result);
+  const validation = validateDisplayImportedAnalysisResponse(request, result);
   if (!validation.valid) throw new Error("The analysis service returned an invalid response. Your source has been kept; try again.");
   if (!validation.value.ok) throw new Error(`${validation.value.error.code}: ${validation.value.error.message}`);
   if (!response.ok) throw new Error("The analysis request failed. Your source has been kept; try again.");
