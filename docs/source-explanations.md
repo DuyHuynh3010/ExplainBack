@@ -2,6 +2,12 @@
 
 Current graph/API contract: [v2 migration and architecture](backend-contract-v2.md).
 
+Current product flow: [Lesson / Explanation / Compare](lesson-explanation-compare.md).
+Current scoped evaluation repair: [learner references and mixed repair](learner-reference-repair.md).
+The follow-up reuses the learner graph returned here, adds semantic identity
+alignments and replaces the previous source-only status overlay with three views.
+The verification notes below describe the historical Blocks 3B/3C implementation.
+
 
 ## Implemented local flow
 

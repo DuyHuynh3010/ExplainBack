@@ -185,6 +185,16 @@ export interface EvaluationResult {
   learnerGraph: KnowledgeGraph;
   comparisons: ComparisonItem[];
   additionalIdeas: AdditionalIdea[];
+  /** Additive v2 capability. Absent in historical responses: never infer matches from labels. */
+  conceptAlignments?: ConceptAlignment[];
+}
+
+export interface ConceptAlignment {
+  learnerConceptId: string;
+  referenceConceptId: string;
+  status: "matched" | "uncertain";
+  /** Semantic/contextual justification, not a string-similarity score. */
+  explanation: string;
 }
 
 export interface ExplainBackDemo {

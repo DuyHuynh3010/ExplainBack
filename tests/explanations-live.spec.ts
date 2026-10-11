@@ -34,12 +34,14 @@ test("live: source -> text evaluation -> editable voice transcript -> voice eval
   await page.getByRole("button", { name: "Write your explanation" }).click();
   await page.getByLabel("Explanation text").fill("Photosynthesis makes glucose and oxygen. Glucose does not store chemical energy. Chlorophyll absorbs light energy. Plants look beautiful.");
   const evaluationResponse = page.waitForResponse(r => r.url().endsWith("/api/evaluations"), { timeout: 75_000 });
-  await page.getByRole("button", { name: "Evaluate", exact: true }).click();
+  await page.getByRole("button", { name: "Create explanation graph", exact: true }).click();
   const response = await evaluationResponse;
   const evaluation = await checkpoint(response, "text_evaluation");
   expect(validateEvaluateTextResponse(response.request().postDataJSON(), evaluation).valid).toBe(true);
+  await expect(page.getByRole("heading", { name: "Explanation graph", exact: true })).toBeVisible();
+  await page.getByRole("button", { name: "Compare", exact: true }).click();
   await expect(page.getByRole("article", { name: "Explanation feedback" })).toBeVisible();
-  for (const topic of source.data.graph.topics) { await page.getByLabel("Topic", { exact: true }).selectOption(topic.id); await expect(page.getByRole("article", { name: "Topic summary" })).toBeVisible(); }
+  for (const topic of source.data.graph.topics) { await page.getByLabel("Topic", { exact: true }).selectOption(topic.id); await expect(page.getByRole("heading", { name: "Compare graphs", exact: true })).toBeVisible(); }
   await page.screenshot({ path: "test-results/live-text-feedback.png", fullPage: true });
   await page.getByRole("button", { name: "Edit and try again" }).click();
   await page.getByRole("button", { name: "Start recording", exact: true }).click();
@@ -56,11 +58,13 @@ test("live: source -> text evaluation -> editable voice transcript -> voice eval
   await page.screenshot({ path: "test-results/live-editable-transcript.png", fullPage: true });
   if (calls >= 4) { console.log("Voice evaluation not attempted: four-generation budget exhausted."); return; }
   const finalResponse = page.waitForResponse(r => r.url().endsWith("/api/evaluations"), { timeout: 75_000 });
-  await page.getByRole("button", { name: "Evaluate", exact: true }).click();
+  await page.getByRole("button", { name: "Create explanation graph", exact: true }).click();
   const final = await finalResponse, voiceEvaluation = await checkpoint(final, "voice_evaluation");
   expect(final.request().postDataJSON().learner.text).toBe(edited);
   expect(validateEvaluateTextResponse(final.request().postDataJSON(), voiceEvaluation).valid).toBe(true);
   expect(voiceEvaluation.data.sourceAnalysisId).toBe(source.data.id);
+  await expect(page.getByRole("heading", { name: "Explanation graph", exact: true })).toBeVisible();
+  await page.getByRole("button", { name: "Compare", exact: true }).click();
   await expect(page.getByRole("article", { name: "Explanation feedback" })).toBeVisible();
   await page.screenshot({ path: "test-results/live-voice-feedback.png", fullPage: true });
 });

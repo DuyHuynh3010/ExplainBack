@@ -1,0 +1,360 @@
+{
+  "provenance": "Exact complete claims from generation 1 of a truncated real response. Diagnostic replay only; not an accepted evaluation.",
+  "concepts": [
+    {
+      "id": "c_graph",
+      "name": "Graph",
+      "aliases": [
+        "graphs"
+      ]
+    },
+    {
+      "id": "c_edge",
+      "name": "Edge",
+      "aliases": [
+        "edges"
+      ]
+    },
+    {
+      "id": "c_simple_graph",
+      "name": "Simple graph",
+      "aliases": [
+        "simple graph"
+      ]
+    },
+    {
+      "id": "c_loop",
+      "name": "Loop",
+      "aliases": [
+        "loops"
+      ]
+    },
+    {
+      "id": "c_parallel_edge",
+      "name": "Parallel edge",
+      "aliases": [
+        "parallel edges"
+      ]
+    },
+    {
+      "id": "c_vertex_degree",
+      "name": "Degree of a vertex",
+      "aliases": [
+        "degree of a vertex"
+      ]
+    },
+    {
+      "id": "c_tree",
+      "name": "Tree",
+      "aliases": [
+        "tree"
+      ]
+    },
+    {
+      "id": "c_cycle",
+      "name": "Cycle",
+      "aliases": [
+        "cycles"
+      ]
+    },
+    {
+      "id": "c_path",
+      "name": "Path",
+      "aliases": [
+        "simple paths"
+      ]
+    },
+    {
+      "id": "c_proposition",
+      "name": "Proposition",
+      "aliases": [
+        "proposition",
+        "statement"
+      ]
+    },
+    {
+      "id": "c_truth_value",
+      "name": "Truth value",
+      "aliases": [
+        "true or false",
+        "truth value"
+      ]
+    },
+    {
+      "id": "c_conjunction",
+      "name": "Conjunction",
+      "aliases": [
+        "conjunction"
+      ]
+    },
+    {
+      "id": "c_disjunction",
+      "name": "Disjunction",
+      "aliases": [
+        "OR statement"
+      ]
+    },
+    {
+      "id": "c_implication",
+      "name": "Implication",
+      "aliases": [
+        "implication",
+        "p implies q"
+      ]
+    },
+    {
+      "id": "c_contrapositive",
+      "name": "Contrapositive",
+      "aliases": [
+        "contrapositive"
+      ]
+    },
+    {
+      "id": "c_converse",
+      "name": "Converse",
+      "aliases": [
+        "converse"
+      ]
+    },
+    {
+      "id": "c_set_union",
+      "name": "Union",
+      "aliases": [
+        "union"
+      ]
+    },
+    {
+      "id": "c_set_intersection",
+      "name": "Intersection",
+      "aliases": [
+        "intersection"
+      ]
+    },
+    {
+      "id": "c_set_difference",
+      "name": "Difference",
+      "aliases": [
+        "A minus B"
+      ]
+    },
+    {
+      "id": "c_inclusion_exclusion",
+      "name": "Inclusion-exclusion formula",
+      "aliases": [
+        "inclusion-exclusion"
+      ]
+    },
+    {
+      "id": "c_function",
+      "name": "Function",
+      "aliases": [
+        "function"
+      ]
+    },
+    {
+      "id": "c_injective",
+      "name": "Injective function",
+      "aliases": [
+        "injective function",
+        "injective"
+      ]
+    },
+    {
+      "id": "c_surjective",
+      "name": "Surjective function",
+      "aliases": [
+        "surjective function",
+        "surjective"
+      ]
+    },
+    {
+      "id": "c_bijective",
+      "name": "Bijective function",
+      "aliases": [
+        "bijection",
+        "bijective"
+      ]
+    },
+    {
+      "id": "c_cardinality",
+      "name": "Cardinality",
+      "aliases": [
+        "sizes",
+        "equal sizes"
+      ]
+    },
+    {
+      "id": "c_universal",
+      "name": "Universal statement",
+      "aliases": [
+        "universal statement"
+      ]
+    },
+    {
+      "id": "c_existential",
+      "name": "Existential statement",
+      "aliases": [
+        "existential statement"
+      ]
+    },
+    {
+      "id": "c_integers",
+      "name": "Integers",
+      "aliases": [
+        "integers"
+      ]
+    },
+    {
+      "id": "c_equivalence_relation",
+      "name": "Equivalence relation",
+      "aliases": [
+        "equivalence relation"
+      ]
+    }
+  ],
+  "claims": [
+    {
+      "id": "lc_prop_def",
+      "representation": {
+        "kind": "binary",
+        "subjectConceptId": "c_proposition",
+        "relation": "is",
+        "objectConceptId": "c_truth_value"
+      },
+      "assertion": "a proposition is a statement that is either true or false",
+      "negated": false,
+      "conditions": [],
+      "quote": "a proposition is a statement that is either true or false."
+    },
+    {
+      "id": "lc_intersection",
+      "representation": {
+        "kind": "binary",
+        "subjectConceptId": "c_set_intersection",
+        "relation": "contains",
+        "objectConceptId": "c_set_intersection"
+      },
+      "assertion": "The intersection contains only the shared elements.",
+      "negated": false,
+      "conditions": [],
+      "quote": "The intersection contains only the shared elements."
+    },
+    {
+      "id": "lc_func_assign",
+      "representation": {
+        "kind": "binary",
+        "subjectConceptId": "c_function",
+        "relation": "assigns",
+        "objectConceptId": "c_function"
+      },
+      "assertion": "A function assigns exactly one output to each input.",
+      "negated": false,
+      "conditions": [],
+      "quote": "A function assigns exactly one output to each input."
+    },
+    {
+      "id": "lc_bijective",
+      "representation": {
+        "kind": "binary",
+        "subjectConceptId": "c_bijective",
+        "relation": "is",
+        "objectConceptId": "c_bijective"
+      },
+      "assertion": "A bijection is both injective and surjective.",
+      "negated": false,
+      "conditions": [],
+      "quote": "A bijection is both injective and surjective."
+    },
+    {
+      "id": "lc_add_equiv_rel",
+      "representation": {
+        "kind": "binary",
+        "subjectConceptId": "c_equivalence_relation",
+        "relation": "is",
+        "objectConceptId": "c_equivalence_relation"
+      },
+      "assertion": "an equivalence relation is symmetric and transitive.",
+      "negated": false,
+      "conditions": [],
+      "quote": "Finally, an equivalence relation is symmetric and transitive."
+    }
+  ],
+  "additionalIdeasFromGeneration2": [
+    {
+      "learnerClaimIds": [],
+      "explanation": ""
+    }
+  ],
+  "generation4ClaimQuotes": [
+    {
+      "quote": "the edges are undirected"
+    },
+    {
+      "quote": "a simple graph does not allow loops or parallel edges"
+    },
+    {
+      "quote": "The degree of a vertex counts the edges touching it"
+    },
+    {
+      "quote": "A tree is a connected graph with no cycles"
+    },
+    {
+      "quote": "there are exactly two simple paths between every pair of distinct vertices in a tree"
+    },
+    {
+      "quote": "any simple undirected graph with n vertices and n - 1 edges must be a tree, even if we have not checked connectivity"
+    },
+    {
+      "quote": "a proposition is a statement that is either true or false"
+    },
+    {
+      "quote": "A conjunction requires both statements to be true"
+    },
+    {
+      "quote": "An OR statement is true when exactly one of its two propositions is true"
+    },
+    {
+      "quote": "it becomes false if both propositions are true"
+    },
+    {
+      "quote": "The implication p implies q fails only when p is true and q is false"
+    },
+    {
+      "quote": "Its contrapositive is NOT q implies NOT p"
+    },
+    {
+      "quote": "these two statements have the same truth value in every case"
+    },
+    {
+      "quote": "I think the converse q implies p is also always equivalent to the original implication"
+    },
+    {
+      "quote": "the union contains elements belonging to either set, including elements shared by both"
+    },
+    {
+      "quote": "The intersection contains only the shared elements"
+    },
+    {
+      "quote": "A minus B means the elements in A that are absent from B"
+    },
+    {
+      "quote": "A function assigns exactly one output to each input"
+    },
+    {
+      "quote": "An injective function does not send two distinct inputs to the same output"
+    },
+    {
+      "quote": "I would describe a surjective function as one that reaches many elements of its codomain, although I have not specified whether it must reach every element"
+    },
+    {
+      "quote": "A bijection is both injective and surjective"
+    },
+    {
+      "quote": "If two finite sets have equal sizes, then every function between them is automatically bijective"
+    },
+    {
+      "quote": "an equivalence relation is symmetric and transitive"
+    }
+  ],
+  "generation4Provenance": "Unchanged real generation 4 claim quotes. Full output had STOP but omitted input paragraphs 6 and 7. Not an accepted evaluation."
+}

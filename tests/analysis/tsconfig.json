@@ -1,6 +1,6 @@
 {
   "extends": "../sources/tsconfig.json",
   "compilerOptions": { "outDir": "../../test-results/analysis-build" },
-  "include": ["../../src/backend/**/*.ts", "../../src/app/api/analysis/route.ts", "../../src/app/api/transcriptions/route.ts", "../../src/app/api/evaluations/route.ts", "../../src/lib/reference-graph.ts", "../../src/lib/evaluated-graph.ts"],
+  "include": ["../../src/backend/**/*.ts", "../../src/app/api/analysis/route.ts", "../../src/app/api/transcriptions/route.ts", "../../src/app/api/evaluations/route.ts", "../../src/lib/reference-graph.ts", "../../src/lib/evaluated-graph.ts", "../../src/lib/graph-layout.ts", "../../src/lib/comparison-graph.ts"],
   "exclude": ["../../node_modules"]
 }

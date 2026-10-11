@@ -42,13 +42,16 @@ test("mock: text evaluation retains source endpoints, shows statuses and real le
   let calls = 0, source;
   await page.route("**/api/evaluations", r => { calls++; const b = r.request().postDataJSON(); source = b.sourceAnalysis; return r.fulfill({ contentType: "application/json", body: envelope(mockEvaluation(b)) }); });
   await explain(page); await page.getByLabel("Explanation text").fill("Glucose stores energy.");
-  await page.getByRole("button", { name: "Evaluate", exact: true }).click();
-  await expect(page.getByRole("article", { name: "Explanation feedback" })).toContainText("Glucose stores energy.");
+  await page.getByRole("button", { name: "Create explanation graph", exact: true }).click();
+  await expect(page.getByRole("heading", { name: "Explanation graph", exact: true })).toBeVisible();
+  await page.getByRole("button", { name: "Compare", exact: true }).click();
+  await expect(page.getByRole("complementary", { name: "Comparison details" })).toContainText("Glucose stores energy.");
   await expect(page.locator(".status-badge.correct").first()).toBeVisible();
   await expect(page.locator(".status-badge.missing").first()).toBeVisible();
-  await expect(page.locator(".react-flow__edge")).toHaveCount(source!.graph.statements.filter((s: { topicId: string }) => s.topicId === source!.graph.topics[0].id).length);
+  await expect(page.getByLabel("Source concept map")).toHaveAttribute("data-layout-ready", "true");
+  await expect(page.locator(".react-flow__edge")).toHaveCount(source!.graph.statements.length + 1);
   const edges = await page.locator(".react-flow__edge").evaluateAll(elements => elements.map(e => e.getAttribute("data-id")));
-  expect(edges.sort()).toEqual(source!.graph.statements.filter((s: { topicId: string }) => s.topicId === source!.graph.topics[0].id).map((s: { id: string }) => s.id).sort());
+  for (const s of source!.graph.statements) expect(edges).toContain(`${source!.graph.id}:${s.id}`);
   await page.getByRole("button", { name: "Edit and try again" }).click();
   await expect(page.getByLabel("Explanation text")).toHaveValue("Glucose stores energy."); expect(calls).toBe(1);
 });
@@ -56,20 +59,20 @@ test("mock: evaluation error retains input and retry uses the same analysis and 
   let calls = 0, first: EvaluateTextRequest;
   await page.route("**/api/evaluations", r => { const b = r.request().postDataJSON(); calls++; if (calls === 1) { first = b; return r.fulfill({ status: 429, contentType: "application/json", body: error }); } expect(b).toEqual(first); return r.fulfill({ contentType: "application/json", body: envelope(mockEvaluation(b)) }); });
   await explain(page); await page.getByLabel("Explanation text").fill("Glucose stores energy.");
-  await page.getByRole("button", { name: "Evaluate", exact: true }).click(); await expect(page.locator(".error-message")).toContainText("Mock quota reached.");
+  await page.getByRole("button", { name: "Create explanation graph", exact: true }).click(); await expect(page.locator(".error-message")).toContainText("Mock quota reached.");
   await expect(page.getByLabel("Explanation text")).toHaveValue("Glucose stores energy.");
-  await page.getByRole("button", { name: "Evaluate", exact: true }).click(); await expect(page.getByRole("article", { name: "Explanation feedback" })).toBeVisible(); expect(calls).toBe(2);
+  await page.getByRole("button", { name: "Create explanation graph", exact: true }).click(); await expect(page.getByRole("heading", { name: "Explanation graph", exact: true })).toBeVisible(); await page.getByRole("button", { name: "Compare", exact: true }).click(); await expect(page.getByRole("complementary", { name: "Comparison details" })).toBeVisible(); expect(calls).toBe(2);
 });
 for (const action of ["edit", "reset"] as const) test(`mock: late evaluation cannot overwrite ${action}`, async ({ page }) => {
   let release!: () => void, started!: () => void;
   const signal = new Promise<void>(resolve => started = resolve), pending = new Promise<void>(resolve => release = resolve);
   let calls = 0;
   await page.route("**/api/evaluations", async r => { calls++; const data = mockEvaluation(r.request().postDataJSON()); started(); await pending; await r.fulfill({ contentType: "application/json", body: envelope(data) }).catch(() => {}); });
-  await explain(page); await page.getByLabel("Explanation text").fill("Glucose stores energy."); await page.getByRole("button", { name: "Evaluate", exact: true }).click(); await signal;
-  await expect(page.getByRole("button", { name: "Evaluating...", exact: false })).toBeDisabled();
+  await explain(page); await page.getByLabel("Explanation text").fill("Glucose stores energy."); await page.getByRole("button", { name: "Create explanation graph", exact: true }).click(); await signal;
+  await expect(page.getByRole("button", { name: "Creating explanation graph...", exact: false })).toBeDisabled();
   if (action === "edit") await page.getByLabel("Explanation text").fill("New explanation."); else await page.getByRole("button", { name: "Start over" }).click();
   release(); await page.waitForTimeout(250);
-  await expect(page.getByRole("article", { name: "Explanation feedback" })).toHaveCount(0);
+  await expect(page.getByRole("complementary", { name: "Comparison details" })).toHaveCount(0);
   if (action === "edit") await expect(page.getByLabel("Explanation text")).toHaveValue("New explanation."); else await expect(page.getByLabel("Paste your learning material")).toHaveValue(""); expect(calls).toBe(1);
 });
 test("mock: transcript is editable and evaluation submits the edited text", async ({ page }) => {
@@ -78,12 +81,12 @@ test("mock: transcript is editable and evaluation submits the edited text", asyn
   await page.route("**/api/evaluations", r => { const b = r.request().postDataJSON(); expect(b.learner.text).toBe("My edited transcript."); return r.fulfill({ contentType: "application/json", body: envelope(mockEvaluation(b)) }); });
   await explain(page); await record(page); await page.getByRole("button", { name: "Create transcript", exact: true }).click();
   await expect(page.getByLabel("Explanation text")).toHaveValue(transcript.transcript); await page.getByLabel("Explanation text").fill("My edited transcript.");
-  await page.getByRole("button", { name: "Evaluate", exact: true }).click(); await expect(page.getByRole("article", { name: "Explanation feedback" })).toContainText("My edited transcript.");
+  await page.getByRole("button", { name: "Create explanation graph", exact: true }).click(); await expect(page.getByRole("heading", { name: "Explanation graph", exact: true })).toBeVisible(); await page.getByRole("button", { name: "Compare", exact: true }).click(); await expect(page.getByRole("complementary", { name: "Comparison details" })).toContainText("My edited transcript.");
 });
 test("mock: transcription failure leaves recording and manual text available", async ({ page }) => {
   await fakeRecording(page); await page.route("**/api/transcriptions", r => r.fulfill({ status: 429, contentType: "application/json", body: error }));
   await explain(page); await page.getByLabel("Explanation text").fill("Keep my input."); await record(page); await page.getByRole("button", { name: "Create transcript", exact: true }).click();
-  await expect(page.locator(".error-message")).toContainText("Mock quota reached."); await expect(page.locator("audio")).toBeVisible(); await expect(page.getByLabel("Explanation text")).toHaveValue("Keep my input."); await expect(page.getByRole("button", { name: "Evaluate", exact: true })).toBeEnabled();
+  await expect(page.locator(".error-message")).toContainText("Mock quota reached."); await expect(page.locator("audio")).toBeVisible(); await expect(page.getByLabel("Explanation text")).toHaveValue("Keep my input."); await expect(page.getByRole("button", { name: "Create explanation graph", exact: true })).toBeEnabled();
 });
 test("mock: replacing audio discards a late transcript and keeps typed input", async ({ page }) => {
   await fakeRecording(page); let release!: () => void, started!: () => void;
@@ -100,11 +103,11 @@ test("mock: malformed successful transcript is rejected without replacing manual
 });
 test("mock: malformed successful evaluation is rejected without feedback fixture", async ({ page }) => {
   await page.route("**/api/evaluations", r => r.fulfill({ contentType: "application/json", body: envelope({ comparisons: [] }) }));
-  await explain(page); await page.getByLabel("Explanation text").fill("Keep my explanation."); await page.getByRole("button", { name: "Evaluate", exact: true }).click();
-  await expect(page.locator(".error-message")).toContainText("invalid references or evidence"); await expect(page.getByLabel("Explanation text")).toHaveValue("Keep my explanation."); await expect(page.getByRole("article", { name: "Explanation feedback" })).toHaveCount(0);
+  await explain(page); await page.getByLabel("Explanation text").fill("Keep my explanation."); await page.getByRole("button", { name: "Create explanation graph", exact: true }).click();
+  await expect(page.locator(".error-message")).toContainText("invalid references or evidence"); await expect(page.getByLabel("Explanation text")).toHaveValue("Keep my explanation."); await expect(page.getByRole("complementary", { name: "Comparison details" })).toHaveCount(0);
 });
 for (const file of ["text.pdf", "paragraphs-table.docx"]) test(`real ingestion + mock AI: explanation ${file} becomes editable text`, async ({ page }) => {
   await explain(page); await page.unroute("**/api/sources");
   await page.getByLabel("Upload your explanation").setInputFiles(`tests/sources/fixtures/${file}`); await page.getByRole("button", { name: "Import explanation text", exact: true }).click();
-  await expect(page.getByLabel("Explanation text")).not.toHaveValue(""); await expect(page.getByRole("button", { name: "Evaluate", exact: true })).toBeEnabled();
+  await expect(page.getByLabel("Explanation text")).not.toHaveValue(""); await expect(page.getByRole("button", { name: "Create explanation graph", exact: true })).toBeEnabled();
 });

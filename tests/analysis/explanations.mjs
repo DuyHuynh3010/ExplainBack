@@ -129,10 +129,12 @@ test("evaluation truncation and provider failures never trigger repair/retry", a
     const r = await handleEvaluationRequest(jsonRequest(input("Example.")), p); assert.equal(p.calls, 1); assert.ok([502, 503].includes(r.status));
   }
 });
-test("evaluation graph adapter changes colors/text only, retaining every source edge endpoint", () => {
+test("evaluation graph adapter overlays status without changing source identity or endpoints", () => {
   const result = normalizeEvaluation(input("Example."), JSON.stringify(draft("missing")));
   const original = toReferenceFlow(sourceAnalysis.graph, topicId), adapted = toEvaluatedFlow(sourceAnalysis.graph, topicId, result);
-  assert.deepEqual(adapted.nodes, original.nodes); assert.deepEqual(adapted.edges.map(e => [e.id, e.source, e.target, e.data]), original.edges.map(e => [e.id, e.source, e.target, e.data])); assert.ok(adapted.edges.every(e => e.label.startsWith("Missing:")));
+  assert.deepEqual(adapted.nodes, original.nodes);
+  assert.deepEqual(adapted.edges.map(e => { const { status, ...data } = e.data; assert.equal(status, "missing"); return [e.id, e.source, e.target, data]; }), original.edges.map(e => [e.id, e.source, e.target, e.data]));
+  assert.ok(adapted.edges.every(e => e.label.startsWith("Missing:")));
 });
 test("Gemini audio transport sends structured inline data with exactly one SDK attempt", async () => {
   let calls = 0, sent;
@@ -162,6 +164,6 @@ test("v2: reordered learner claims, shared matches and complex references retain
   assert.ok(result.learnerGraph.statements.some(s => s.representation.kind === "complex"));
   for (const topic of analysis.graph.topics) {
     const flow = toEvaluatedFlow(analysis.graph, topic.id, result);
-    for (const edge of flow.edges) assert.equal(edge.label.split(":")[0].toLowerCase(), result.comparisons.find(c => c.referenceRelationshipId === edge.id).status);
+    for (const edge of flow.edges) assert.equal(edge.label.split(":")[0].toLowerCase(), result.comparisons.find(c => c.referenceRelationshipId === edge.data.referenceStatementId).status);
   }
 });

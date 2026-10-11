@@ -1,77 +1,78 @@
 "use client";
-import { useEffect, useRef, useState } from "react";
-import { Background, Controls, ReactFlow } from "@xyflow/react";
-import { GitBranch, BookOpen, ArrowLeft, ArrowRight, Info } from "lucide-react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { GitBranch, BookOpen, ArrowLeft, ArrowRight, Info, Expand, X, PanelRight } from "lucide-react";
 import type { EvaluationResult, ImportedSource, SourceAnalysis } from "@/backend/contracts/domain";
-import { toReferenceFlow } from "@/lib/reference-graph";
-import { ReferenceEdge } from "./ReferenceEdge";
+import { toReferenceFlow, type GraphSelection } from "@/lib/reference-graph";
+import { ReferenceCanvas } from "./ReferenceCanvas";
 import { SourceEvidenceDetails } from "./SourceEvidenceDetails";
-import { ExplanationFeedback } from "./ExplanationFeedback";
 import { StatusBadge } from "./StatusBadge";
-import { toEvaluatedFlow } from "@/lib/evaluated-graph";
+import { ALL_TOPICS, ADDITIONAL_IDEAS, toComparisonFlow, toExplanationFlow, type ExplorerFlow, type GraphView } from "@/lib/comparison-graph";
+import { ExplanationGraphView } from "./ExplanationGraphView";
+import { useGraphFullscreen } from "@/lib/use-graph-fullscreen";
 
-const edgeTypes = { reference: ReferenceEdge };
 interface Props {
   analysis: SourceAnalysis; importedSource: ImportedSource; topicId: string;
   onTopic: (id: string) => void; onBack: () => void; onExplain: () => void;
-  evaluation?: EvaluationResult;
+  evaluation?: EvaluationResult; view?: GraphView; onView?: (view: GraphView) => void;
 }
+export function UnderstandingMap({ analysis, importedSource, topicId, onTopic, onBack, onExplain, evaluation, view = "lesson", onView }: Props) {
+  const explorer = useRef<HTMLDivElement>(null), expandButton = useRef<HTMLButtonElement>(null);
+  const { expanded, mode, pending, error: fullscreenError, enter, exit } = useGraphFullscreen(explorer);
+  const [detailsOpen, setDetailsOpen] = useState(true);
+  const [choices, setChoices] = useState<Record<string, { id: string; selection: GraphSelection }>>({});
+  const key = `${view}:${topicId}`;
+  const flow = useMemo<ExplorerFlow>(() => {
+    if (evaluation && view === "compare") return toComparisonFlow(analysis.graph, evaluation, topicId);
+    if (evaluation && view === "explanation") return toExplanationFlow(evaluation, topicId);
+    const statements = analysis.graph.statements.filter(s => s.topicId === topicId);
+    return { ...toReferenceFlow(analysis.graph, topicId), details: statements.map(s => ({ id: s.id, lesson: [s], learner: [] })) };
+  }, [analysis.graph, evaluation, topicId, view]);
+  const choice = choices[key] ?? { id: flow.details[0]?.id ?? "", selection: null };
+  const detail = flow.details.find(d => d.id === choice.id);
+  const learnerCount = new Set(flow.details.flatMap(d => d.learner.map(s => s.id))).size;
+  const selectedConcept = choice.selection?.kind === "node" ? flow.nodes.find(n => n.id === choice.selection?.id) : undefined;
+  const select = (selection: GraphSelection) => {
+    setChoices(previous => ({ ...previous, [key]: { id: selection?.kind === "statement" ? selection.id : choice.id, selection } }));
+    if (selection?.kind === "statement") {
+      setDetailsOpen(true);
+      if (!expanded) explorer.current?.scrollIntoView({ block: "start", behavior: "smooth" });
+    }
+  };
+  useEffect(() => {
+    if (!expanded) return;
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    explorer.current?.querySelector<HTMLButtonElement>(".close-graph")?.focus();
+    const keydown = (e: KeyboardEvent) => {
+      if (e.key === "Escape") { e.preventDefault(); void exit(); }
+      if (e.key === "Tab") {
+        const controls = Array.from(explorer.current?.querySelectorAll<HTMLElement>('button:not(:disabled),select,summary,[tabindex="0"]') ?? []).filter(el => el.getClientRects().length);
+        const first = controls[0], last = controls.at(-1);
+        if (e.shiftKey && document.activeElement === first) { e.preventDefault(); last?.focus(); }
+        if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first?.focus(); }
+      }
+    };
+    document.addEventListener("keydown", keydown);
+    return () => { document.body.style.overflow = previousOverflow; document.removeEventListener("keydown", keydown); requestAnimationFrame(() => expandButton.current?.focus()); };
+  }, [expanded, mode]);
 
-export function UnderstandingMap(props: Props) {
-  const { analysis, importedSource, topicId, onTopic, onBack, onExplain, evaluation } = props;
   return <section aria-labelledby="map-heading">
-    <div className="view-heading result-heading"><div><span className="eyebrow">STEP 02 · EXPLORE YOUR SOURCE</span><h1 id="map-heading">{evaluation ? "Your explanation feedback" : "See how the ideas connect."}</h1><p>{analysis.document.title || "Your learning source"} · Reference knowledge and topic summaries</p></div></div>
-    <div className="notice"><Info size={18} /><p>{evaluation ? "AI feedback grounded in your source and explanation. Missing means not expressed here; uncertain means insufficient evidence. Review the quotes and source for accuracy." : "AI source analysis, not an evaluation of your explanation. Relationships are ungraded. Review the original source for accuracy."}</p></div>
-    <div className="analysis-warnings" aria-label="Source warnings">
-      {analysis.sourceWarnings?.map((w, i) => <p className="notice" key={`source-${i}`}>{w.code}{w.page !== undefined ? ` · Page ${w.page}` : ""}: {w.message}</p>)}
-      {analysis.analysisWarnings?.map((w, i) => <p className="notice" key={`analysis-${i}`}>{w.code}: {w.message}{w.blockId && ` · Source block ${importedSource.document.blocks.findIndex(b => b.id === w.blockId) + 1}`}</p>)}
+    <div className="view-heading result-heading"><div><span className="eyebrow">{view === "lesson" ? "STEP 02 · EXPLORE YOUR SOURCE" : "STEP 03 · EXPLORE YOUR EXPLANATION"}</span><h1 id="map-heading">{view === "compare" ? "Compare lesson and explanation." : view === "explanation" ? "See what your explanation says." : "See how the ideas connect."}</h1><p>{analysis.document.title || "Your learning source"} · {view === "lesson" ? "Reference knowledge and topic summaries" : "Independent learner graph and evidence"}</p></div></div>
+    <div className="notice"><Info size={18} /><p>{view === "compare" ? "Compare the two original claims. Status describes your explanation against the lesson, never a grade of the lesson itself." : view === "explanation" ? "This graph represents your explanation, including mistakes and additional ideas. Compare uses the cached evaluation." : "AI source analysis, not an evaluation of your explanation. Relationships are ungraded. Review the original source for accuracy."}</p></div>
+    <div className="analysis-warnings" aria-label="Source warnings">{analysis.sourceWarnings?.map((w, i) => <p className="notice" key={i}>{w.code}{w.page !== undefined ? ` · Page ${w.page}` : ""}: {w.message}</p>)}{!!analysis.analysisWarnings?.length && <details className="review-notes"><summary>Review notes ({analysis.analysisWarnings.length})</summary><p>These notes identify source or extraction details to review. They do not grade your explanation.</p>{analysis.analysisWarnings.map((w, i) => <p key={i}>{w.message}{w.blockId && ` · Source block ${importedSource.document.blocks.findIndex(b => b.id === w.blockId) + 1}`}</p>)}</details>}</div>
+    {view === "lesson" && analysis.lessonSections.filter(s => s.topicId === topicId).map(section => <article className="card lesson-summary" key={section.id} aria-label="Topic summary"><div className="card-heading"><div><BookOpen size={19} /><h2>Topic summary</h2></div><span className="small-label">SOURCE KNOWLEDGE</span></div><p className="summary-text">{section.summary}</p><ul className="key-points">{section.keyPoints.map(p => <li key={p.id}><p>{p.text}</p><div className="statement-links">{p.statementIds.map((id, i) => <button key={id} className="button ghost" onClick={() => select({ kind: "statement", id })}>View supporting statement {i + 1}</button>)}</div></li>)}</ul><details><summary>Summary supporting statements</summary>{section.statementIds.map(id => <button className="relationship-row" key={id} onClick={() => select({ kind: "statement", id })}>{analysis.graph.statements.find(s => s.id === id)?.assertion}</button>)}</details></article>)}
+
+    <div ref={explorer} data-graph-workspace data-fullscreen-mode={mode} role={expanded ? "dialog" : undefined} aria-label={expanded ? "Expanded graph explorer" : "Graph workspace"} aria-modal={expanded || undefined} className={`graph-workspace ${expanded ? "graph-expanded" : ""} ${detailsOpen ? "" : "details-collapsed"}`}>
+      <div className="graph-explorer-controls">{evaluation && <div className="graph-view-switch" role="group" aria-label="Graph view">{(["lesson", "explanation", "compare"] as const).map(v => <button key={v} className={`button ${view === v ? "primary" : "secondary"}`} aria-pressed={view === v} onClick={() => onView?.(v)}>{v === "lesson" ? "Lesson" : v === "explanation" ? "Explanation" : "Compare"}</button>)}</div>}
+        <div className="graph-explorer-toolbar"><div className="topic-picker"><label htmlFor="source-topic">Topic</label><select id="source-topic" value={topicId} onChange={e => onTopic(e.target.value)}>{view !== "lesson" && <option value={ALL_TOPICS}>All topics</option>}{analysis.graph.topics.map(t => <option key={t.id} value={t.id}>{t.title}</option>)}{view !== "lesson" && <option value={ADDITIONAL_IDEAS}>Additional ideas</option>}</select></div><button className="button secondary" aria-expanded={detailsOpen} aria-controls="graph-details" onClick={() => setDetailsOpen(v => !v)}><PanelRight size={17} />{detailsOpen ? "Hide details" : "Show details"}</button>{expanded ? <button className="button secondary close-graph" onClick={() => void exit()}><X size={17} />{mode === "native" ? "Exit fullscreen" : "Close expanded graph"}</button> : <button ref={expandButton} className="button secondary" disabled={pending} onClick={() => void enter()}><Expand size={17} />{pending ? "Opening fullscreen…" : "Expand graph"}</button>}</div>{fullscreenError && <p role="alert" className="request-message error-message">{fullscreenError}</p>}
+      </div>
+      <div className="results-layout"><div className="card map-card"><div className="card-heading"><div><GitBranch size={19} /><h2>{view === "compare" ? "Compare graphs" : view === "explanation" ? "Explanation graph" : "Reference graph"}</h2></div><span className="small-label">{view === "compare" ? `${flow.details.filter(d => d.comparison).length} LESSON CLAIMS · ${learnerCount} EXPLANATION CLAIMS` : view === "explanation" ? `${learnerCount} EXPLANATION CLAIMS` : `${flow.details.length} RELATIONSHIPS`}</span></div>
+        {flow.nodes.length ? <ReferenceCanvas key={`${analysis.id}:${evaluation?.id ?? ""}:${key}`} flow={flow} topicId={topicId} selection={choice.selection} onSelect={select} focusSelection={view === "compare"} /> : <p className="notice">No explanation claims are aligned with this view. Nothing has been filled in from the lesson.</p>}
+        <div className="graph-legend"><span><i className="concept-key" />Concept</span><span><i className="relation-key" />Complex claim</span>{view === "compare" ? <><span className="lesson-line">Lesson reference: dashed</span><span className="explanation-line">Explanation: solid</span><span>Both: matched identical claim</span><span>Status evaluates the explanation</span></> : <><span>→ Binary / agent / input / output</span><span>Role links belong to one complete claim</span></>}</div><p className="graph-instructions">Select a claim to inspect its evidence{view === "compare" ? " and focus its linked counterpart" : ""}. Drag to pan; scroll on canvas to zoom.</p>
+      </div><div id="graph-details" className="graph-details" hidden={!detailsOpen}>{selectedConcept?.data.identities && <details className="card" aria-label="Concept identities"><summary>Original concepts</summary>{selectedConcept.data.identities.map(i => <p key={`${i.graphId}:${i.id}`}>{i.origin === "lesson" ? "Lesson" : "Explanation"}: {i.label}<small className="original-concept-label">{i.graphId} / {i.id}</small></p>)}</details>}{detail && (evaluation && view !== "lesson" ? <ExplanationGraphView analysis={analysis} evaluation={evaluation} detail={detail} view={view} /> : detail.lesson[0] && <SourceEvidenceDetails analysis={analysis} importedSource={importedSource} statement={detail.lesson[0]} />)}</div></div>
     </div>
-    <div className="topic-picker"><label htmlFor="source-topic">Topic</label><select id="source-topic" value={topicId} onChange={e => onTopic(e.target.value)}>{analysis.graph.topics.map(t => <option key={t.id} value={t.id}>{t.title}</option>)}</select></div>
-    <TopicAnalysis key={`${analysis.id}:${topicId}:${evaluation?.id ?? "source"}`} analysis={analysis} importedSource={importedSource} topicId={topicId} evaluation={evaluation} />
+
+    <div className="card relationship-list"><p className="eyebrow">{view === "compare" ? "SELECT A COMPARISON OR ADDITIONAL IDEA" : view === "lesson" ? "SELECT A SOURCE RELATIONSHIP" : "WHAT YOUR EXPLANATION SAYS"}</p>{flow.details.map(d => <button key={d.id} data-detail-id={view === "lesson" ? undefined : d.id} data-statement-id={d.lesson[0]?.id} aria-pressed={choice.id === d.id} className={`relationship-row ${choice.id === d.id ? "selected" : ""}`} onClick={() => select({ kind: "statement", id: d.id })}><span>{d.lesson[0]?.assertion ?? d.learner[0]?.assertion}</span>{view === "compare" && d.comparison ? <StatusBadge status={d.comparison.status} /> : <span className="neutral-label">{view === "lesson" ? "Source" : view === "compare" ? "Not compared" : "Explanation"}</span>}</button>)}</div>
     <div className="card-bottom"><button className="button ghost" onClick={onBack}><ArrowLeft size={16} />{evaluation ? "Back to analysis" : "Back to source"}</button><button className="button primary" onClick={onExplain}>{evaluation ? "Edit and try again" : "Write your explanation"}<ArrowRight size={17} /></button></div>
   </section>;
-}
-
-function TopicAnalysis({ analysis, importedSource, topicId, evaluation }: Pick<Props, "analysis" | "importedSource" | "topicId" | "evaluation">) {
-  const statements = analysis.graph.statements.filter(s => s.topicId === topicId);
-  const complex = statements.filter(s => s.representation.kind === "complex");
-  const [selected, setSelected] = useState(statements[0]?.id ?? "");
-  const [graphWidth, setGraphWidth] = useState(0);
-  const graphContainer = useRef<HTMLDivElement>(null);
-  useEffect(() => {
-    const element = graphContainer.current;
-    if (!element) return;
-    const observer = new ResizeObserver(([entry]) => {
-      if (entry.contentRect.width > 0) setGraphWidth(entry.contentRect.width);
-    });
-    observer.observe(element);
-    return () => observer.disconnect();
-  }, []);
-  const statement = statements.find(s => s.id === selected);
-  const narrowGraph = graphWidth < 420;
-  const flow = evaluation ? toEvaluatedFlow(analysis.graph, topicId, evaluation, narrowGraph ? { columns: 1 } : {}) : toReferenceFlow(analysis.graph, topicId, narrowGraph ? { columns: 1 } : {});
-  const comparison = statement && evaluation?.comparisons.find(c => c.sourceStatements.some(ref => ref.statementId === statement.id));
-  const sections = analysis.lessonSections.filter(s => s.topicId === topicId);
-  const selectStatement = (id: string) => setSelected(id);
-  return <>
-    {sections.map(section => <article className="card lesson-summary" key={section.id} aria-label="Topic summary">
-      <div className="card-heading"><div><BookOpen size={19} /><h2>Topic summary</h2></div><span className="small-label">SOURCE KNOWLEDGE</span></div>
-      <p className="summary-text">{section.summary}</p>
-      <ul className="key-points">{section.keyPoints.map(p => <li key={p.id}><p>{p.text}</p><div className="statement-links">{p.statementIds.map((id, i) => <button key={id} className="button ghost" onClick={() => selectStatement(id)}>View supporting statement {i + 1}</button>)}</div></li>)}</ul>
-      <details><summary>Summary supporting statements</summary>{section.statementIds.map(id => <button className="relationship-row" key={id} onClick={() => selectStatement(id)}>{statements.find(s => s.id === id)?.assertion}</button>)}</details>
-    </article>)}
-    <div className="results-layout"><div className="card map-card">
-      <div className="card-heading"><div><GitBranch size={19} /><h2>Reference graph</h2></div><span className="small-label">{statements.length} RELATIONSHIPS</span></div>
-      <div ref={graphContainer} className="graph reference-graph" aria-label="Source concept map" data-topic-id={topicId}>{graphWidth > 0 && <ReactFlow key={String(narrowGraph)} nodes={flow.nodes} edges={flow.edges.map(e => ({ ...e, selected: selected === e.id }))} edgeTypes={edgeTypes} fitView fitViewOptions={{ padding: 0.3 }} nodesDraggable={false} nodesConnectable={false} onEdgeClick={(_, edge) => selectStatement(edge.id)} minZoom={0.1} maxZoom={2} preventScrolling={false}><Background gap={18} color="#dfe5e3" /><Controls showInteractive={false} /></ReactFlow>}</div>
-      <p className="fine-print graph-help">Arrows show binary relationships. Complex statements are preserved in cards below; their participants remain visible as nodes. Select an edge or statement to inspect evidence.</p>
-      {complex.map(s => <article className="card lesson-summary" key={s.id} aria-label="Complex statement">
-        <div className="card-heading"><h3>Complex statement</h3>{evaluation ? (() => { const c = evaluation.comparisons.find(c => c.referenceRelationshipId === s.id); return c ? <StatusBadge status={c.status} /> : <span>Not evaluated</span>; })() : <span className="neutral-label">Source</span>}</div>
-        <p>{s.assertion}</p>
-        {s.representation.kind === "complex" && <ul>{s.representation.participants.map((p, i) => <li key={i}>{p.role}: {analysis.graph.concepts.find(c => c.id === p.conceptId)?.name}</li>)}</ul>}
-        <button className="button ghost" onClick={() => selectStatement(s.id)}>Inspect statement evidence</button>
-      </article>)}
-      <div className="relationship-list"><p className="eyebrow">SELECT A SOURCE RELATIONSHIP</p>{statements.map(s => <button key={s.id} data-statement-id={s.id} aria-pressed={selected === s.id} className={`relationship-row ${selected === s.id ? "selected" : ""}`} onClick={() => selectStatement(s.id)}><span>{s.assertion}</span>{evaluation ? (() => { const c = evaluation.comparisons.find(c => c.sourceStatements.some(ref => ref.statementId === s.id)); return c ? <StatusBadge status={c.status} /> : <span className="neutral-label">Not evaluated</span>; })() : <span className="neutral-label">Source</span>}</button>)}</div>
-    </div>{statement && <div>{evaluation && comparison && <ExplanationFeedback evaluation={evaluation} comparison={comparison} />}<SourceEvidenceDetails analysis={analysis} importedSource={importedSource} statement={statement} evaluated={!!evaluation} /></div>}</div>
-    {evaluation && evaluation.additionalIdeas.filter(i => i.topicId === topicId || (!i.topicId && topicId === analysis.graph.topics[0].id)).map(idea => <article className="card lesson-summary" key={idea.id} aria-label="Additional idea"><h2>Additional idea outside the source</h2><p>{idea.explanation}</p>{idea.learnerStatements.map(ref => <div key={ref.statementId}>{evaluation.learnerGraph.statements.find(s => s.id === ref.statementId)?.evidenceIds.map(id => <blockquote className="source-quote" key={id}>{evaluation.learnerGraph.evidence.find(e => e.id === id)?.quote}</blockquote>)}</div>)}<p className="fine-print">This is not automatically a correctness verdict.</p></article>)}
-  </>;
 }

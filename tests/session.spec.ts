@@ -54,7 +54,8 @@ test("mock: complete source session, topic/summary/evidence, preserved explanati
   await expect(page.getByRole("article", { name: "Topic summary" })).toContainText("Synthetic energy summary");
   await expect(page.locator(".summary-item")).toHaveCount(0);
   await expect(page.locator(".status-badge")).toHaveCount(0);
-  await expect(page.getByLabel("Source warnings")).toContainText("AMBIGUOUS_EVIDENCE");
+  await expect(page.getByLabel("Source warnings")).toContainText("Review notes");
+  await expect(page.locator(".review-notes")).not.toHaveAttribute("open", "");
   const details = page.getByRole("complementary", { name: "Source relationship details" });
   await expect(details).toContainText("unverified");
   await expect(details).not.toContainText("Page 1");
@@ -80,7 +81,7 @@ test("mock: complete source session, topic/summary/evidence, preserved explanati
   await page.screenshot({ path: `test-results/reference-map-${info.project.name}.png`, fullPage: true });
   await page.getByRole("button", { name: "Write your explanation" }).click();
   await page.getByLabel("Explanation text").fill("My own explanation stays in the session.");
-  await expect(page.getByRole("button", { name: "Evaluate", exact: true })).toBeEnabled();
+  await expect(page.getByRole("button", { name: "Create explanation graph", exact: true })).toBeEnabled();
   await page.getByLabel("Upload your explanation").setInputFiles({ name: "explanation.docx", mimeType: "application/vnd.openxmlformats-officedocument.wordprocessingml.document", buffer: Buffer.from("Local file") });
   await page.getByRole("button", { name: "Back to analysis" }).click();
   await expect(page.getByLabel("Topic", { exact: true }).locator("option:checked")).toHaveText("Light");
@@ -247,7 +248,7 @@ test("mock: recording/playback and typed explanation work without transcription/
   await expect(page.locator("audio")).toBeVisible();
   await expect(page.getByRole("button", { name: "Create transcript" })).toBeEnabled();
   await page.getByLabel("Explanation text").fill("My explanation.");
-  await expect(page.getByRole("button", { name: "Evaluate", exact: true })).toBeEnabled();
+  await expect(page.getByRole("button", { name: "Create explanation graph", exact: true })).toBeEnabled();
   await page.getByRole("button", { name: "Back to analysis" }).click();
   await page.getByRole("button", { name: "Write your explanation" }).click();
   await expect(page.getByLabel("Explanation text")).toHaveValue("My explanation.");

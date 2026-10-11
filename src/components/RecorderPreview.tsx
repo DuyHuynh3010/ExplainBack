@@ -19,14 +19,14 @@ export function RecorderPreview(props: Props) {
   const [recording, setRecording] = useState(false);
   const busy = phase !== "idle";
   return <section aria-labelledby="explanation-heading">
-    <div className="view-heading"><span className="eyebrow">STEP 03 / MAKE IT YOUR OWN</span><h1 id="explanation-heading">Share your explanation.</h1><p>Type or record your explanation. Review and edit the transcript before evaluating it against your source.</p></div>
+    <div className="view-heading"><span className="eyebrow">STEP 03 / MAKE IT YOUR OWN</span><h1 id="explanation-heading">Share your explanation.</h1><p>Type or record your explanation. Review and edit the transcript, create your own graph, then Compare with the lesson.</p></div>
     <div className="card explanation-card wide">
       <div className="card-heading"><div><Mic size={19} /><h2>{title.trim() || "Untitled lesson"}</h2></div><span className="small-label">TEXT OR VOICE</span></div>
       <div className="explanation-options"><div className="input-option">
         <div className="option-heading"><Mic size={18} /><div><h3>Record your explanation</h3><p>Transcription preserves what you say, including mistakes.</p></div></div>
         <AudioRecorder audioFile={audioFile} onAudioFile={onAudioFile} onError={setError} onTranscribe={onTranscribe} transcribing={phase === "transcribing"} disabled={phase === "evaluating" || phase === "importing"} onRecordingChange={setRecording} />
       </div><div className="input-option">
-        <div className="option-heading"><Keyboard size={18} /><div><h3>Type or edit your explanation</h3><p>The text below is what Evaluate submits.</p></div></div>
+        <div className="option-heading"><Keyboard size={18} /><div><h3>Type or edit your explanation</h3><p>The text below is used to create your explanation graph and cached comparison.</p></div></div>
         <label className="visually-hidden" htmlFor="explanation-text">Explanation text</label>
         <textarea id="explanation-text" rows={10} maxLength={10_000} placeholder="Explain the lesson in your own words..." value={explanationText} onChange={e => { onExplanationText(e.target.value); setError(""); }} />
         <div className="source-meta"><span>{explanationText.trim() ? explanationText.trim().split(/\s+/).length : 0} words</span><span>{(10_000 - explanationText.length).toLocaleString()} characters left</span></div>
@@ -36,8 +36,8 @@ export function RecorderPreview(props: Props) {
       <div className="input-divider"><span>OR IMPORT A FILE</span></div>
       <div className="explanation-file-option"><div className="option-heading"><FileText size={18} /><div><h3>Upload your explanation</h3><p>Extract text from PDF or DOCX, then review it above.</p></div></div><TranscriptEditor file={explanationFile} onChange={file => { onExplanationFile(file); setError(""); }} onError={setError} />{explanationFile && <button className="button secondary" disabled={busy || recording} onClick={onImportFile}>{phase === "importing" ? "Importing explanation..." : "Import explanation text"}</button>}</div>
       {(error || requestError) && <div className="request-message error-message" role="alert"><AlertCircle size={17} /><span>{error || requestError} Your current input has been kept. You can retry or use text.</span></div>}
-      <div className="card-bottom"><button className="button ghost" onClick={onBack}><ArrowLeft size={16} />Back to analysis</button><button className="button primary" disabled={!canEvaluate || busy || recording || !!explanationFile} onClick={onEvaluate}>{phase === "evaluating" ? "Evaluating..." : "Evaluate"}<ArrowRight size={17} /></button></div>
-      <p className="fine-print preview-note" role="status">{phase === "transcribing" ? "Transcribing your recording..." : phase === "evaluating" ? "Comparing your explanation with source evidence..." : "Evaluation covers all source topics. Missing means an idea is not expressed in this explanation."}</p>
+      <div className="card-bottom"><button className="button ghost" onClick={onBack}><ArrowLeft size={16} />Back to analysis</button><button className="button primary" disabled={!canEvaluate || busy || recording || !!explanationFile} onClick={onEvaluate}>{phase === "evaluating" ? "Creating explanation graph..." : "Create explanation graph"}<ArrowRight size={17} /></button></div>
+      <p className="fine-print preview-note" role="status">{phase === "transcribing" ? "Transcribing your recording..." : phase === "evaluating" ? "Extracting your claims and preparing comparison in one request..." : "Create your graph first. Compare reuses the cached evaluation for all lesson topics."}</p>
     </div>
   </section>;
 }

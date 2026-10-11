@@ -39,9 +39,11 @@ test("live voice: saved real source -> Chromium recording -> transcript edit -> 
   const edited = `${transcript.data.transcript}\nI would like to review the source.`;
   await page.getByLabel("Explanation text").fill(edited); await page.screenshot({ path: "test-results/live-editable-transcript.png", fullPage: true });
   const evaluationResponse = page.waitForResponse(r => r.url().endsWith("/api/evaluations"), { timeout: 75_000 });
-  await page.getByRole("button", { name: "Evaluate", exact: true }).click();
+  await page.getByRole("button", { name: "Create explanation graph", exact: true }).click();
   const response = await evaluationResponse, result = await checkpoint(response, "voice_evaluation");
   expect(response.request().postDataJSON().learner.text).toBe(edited); expect(validateEvaluateTextResponse(response.request().postDataJSON(), result).valid).toBe(true); expect(result.data.sourceAnalysisId).toBe(saved.analysis.id);
+  await expect(page.getByRole("heading", { name: "Explanation graph", exact: true })).toBeVisible();
+  await page.getByRole("button", { name: "Compare", exact: true }).click();
   await expect(page.getByRole("article", { name: "Explanation feedback" })).toBeVisible();
   for (const topic of saved.analysis.graph.topics) {
     await page.getByLabel("Topic", { exact: true }).selectOption(topic.id);

@@ -10,6 +10,10 @@ export interface ValidationIssue {
   path: string;
   code: "shape" | "reference" | "invariant" | "evidence";
   message: string;
+  /** Internal diagnostic labels, never source text or provider messages. */
+  ruleId?: string;
+  ids?: Record<string, string>;
+  catalogFound?: boolean;
 }
 export type ValidationResult<T> =
   | { valid: true; value: T; issues: [] }
@@ -82,6 +86,7 @@ const evaluationRule = object({
     explanation: string(), suggestions: array(string(), 0, 10),
   }), 0, 120),
   additionalIdeas: array(object({ id, topicId: optional(id), learnerStatements: array(refRule, 1, 120), explanation: string() }), 0, 120),
+  conceptAlignments: optional(array(object({ learnerConceptId: id, referenceConceptId: id, status: string(["matched", "uncertain"]), explanation: string() }), 0, 100)),
 });
 const demoRule = object({
   description: string(), sourceAnalysis: analysisRule, learnerText: string(), evaluation: evaluationRule,
@@ -114,8 +119,8 @@ function responseRule(input: unknown, data: Rule): Rule {
     : { ok: { type: "boolean" }, schemaVersion: version, data });
 }
 
-function issue(issues: ValidationIssue[], path: string, code: ValidationIssue["code"], message: string) {
-  issues.push({ path, code, message });
+function issue(issues: ValidationIssue[], path: string, code: ValidationIssue["code"], message: string, metadata: Pick<ValidationIssue, "ruleId" | "ids" | "catalogFound"> = {}) {
+  issues.push({ path, code, message, ...metadata });
 }
 /** Domain payloads contain JSON primitives; object key order is not semantic. */
 function canonicalJson(value: unknown): string {
@@ -204,7 +209,7 @@ function checkGraph(doc: Document, graph: KnowledgeGraph, documentPath: string, 
   const topics = new Set(graph.topics.map(t => t.id));
   const concepts = new Map(graph.concepts.map(c => [c.id, c]));
   const evidenceIds = new Set(graph.evidence.map(e => e.id));
-  for (const finding of inspectRepeatedAssertions(graph.statements, graph.concepts, `${graphPath}.statements`)) issue(issues, finding.path, finding.code, finding.message);
+  for (const finding of inspectRepeatedAssertions(graph.statements, graph.concepts, `${graphPath}.statements`)) issue(issues, finding.path, finding.code, finding.message, { ruleId: finding.ruleId, ids: finding.ids });
   graph.concepts.forEach((concept, i) => {
     if (concept.documentId !== doc.id) issue(issues, `${graphPath}.concepts[${i}].documentId`, "reference", "Concept belongs to the wrong document.");
     unique(concept.aliases, `${graphPath}.concepts[${i}].aliases`, issues);
@@ -216,7 +221,7 @@ function checkGraph(doc: Document, graph: KnowledgeGraph, documentPath: string, 
     referencedConceptIds(r).forEach((conceptId, j) => exists(conceptId, new Set(concepts.keys()), r.kind === "binary" ? `${p}.representation.${j === 0 ? "subjectConceptId" : "objectConceptId"}` : `${p}.representation.participants[${j}].conceptId`, issues));
     if (r.kind === "complex") unique(r.participants.map(p => JSON.stringify([p.conceptId, p.role])), `${p}.representation.participants`, issues);
     for (const finding of inspectStatement(statement, graph.concepts, p)) {
-      if (finding.severity === "error") issue(issues, finding.path, finding.code, finding.message);
+      if (finding.severity === "error") issue(issues, finding.path, finding.code, finding.message, { ruleId: finding.ruleId, ids: finding.ids });
     }
     unique(statement.evidenceIds, `${p}.evidenceIds`, issues);
     statement.evidenceIds.forEach((e, j) => exists(e, evidenceIds, `${p}.evidenceIds[${j}]`, issues));
@@ -331,9 +336,9 @@ function checkEvaluation(source: SourceAnalysis, evaluation: EvaluationResult, p
     checkRefs(comparison.sourceStatements, source.graph, comparison.topicId, `${p}.sourceStatements`);
     checkRefs(comparison.learnerStatements, learner, comparison.topicId, `${p}.learnerStatements`);
     if (comparison.status === "missing" && comparison.learnerStatements.length) {
-      issue(issues, `${p}.learnerStatements`, "invariant", "Missing has no corresponding learner statement.");
+      issue(issues, `${p}.learnerStatements`, "invariant", "Missing has no corresponding learner statement.", { ruleId: "missing_with_learner_claim", ids: { referenceRelationshipId: comparison.referenceRelationshipId ?? "" } });
     } else if (!["missing", "uncertain"].includes(comparison.status) && !comparison.learnerStatements.length) {
-      issue(issues, `${p}.learnerStatements`, "invariant", "This status requires a learner statement.");
+      issue(issues, `${p}.learnerStatements`, "invariant", "This status requires a learner statement.", { ruleId: "status_requires_learner_claim", ids: { referenceRelationshipId: comparison.referenceRelationshipId ?? "" } });
     }
     if (comparison.status !== "uncertain") {
       const requireVerified = (refs: StatementRef[], graph: KnowledgeGraph, refPath: string) => {
@@ -351,14 +356,28 @@ function checkEvaluation(source: SourceAnalysis, evaluation: EvaluationResult, p
   evaluation.additionalIdeas.forEach((idea, i) => {
     const p = `${path}.additionalIdeas[${i}]`;
     if (idea.topicId) exists(idea.topicId, selected, `${p}.topicId`, issues);
-    for (const ref of idea.learnerStatements) if (learnerUsage.has(ref.statementId)) issue(issues, `${p}.learnerStatements`, "invariant", "An additional idea cannot also be a matched learner claim or another additional idea.");
+    for (const ref of idea.learnerStatements) if (learnerUsage.has(ref.statementId)) issue(issues, `${p}.learnerStatements`, "invariant", "An additional idea cannot also be a matched learner claim or another additional idea.", { ruleId: "claim_classification_conflict", ids: { statementId: ref.statementId } });
     checkRefs(idea.learnerStatements, learner, idea.topicId, `${p}.learnerStatements`);
   });
   source.graph.statements.filter(s => selected.has(s.topicId)).forEach(s => {
-    if (!sourceUsage.has(s.id)) issue(issues, `${path}.comparisons`, "invariant", `Unclassified source statement: ${s.id}.`);
+    if (!sourceUsage.has(s.id)) issue(issues, `${path}.comparisons`, "invariant", `Unclassified source statement: ${s.id}.`, { ruleId: "unclassified_reference_statement", ids: { referenceRelationshipId: s.id } });
   });
   learner.statements.forEach((s, i) => {
-    if (!learnerUsage.has(s.id)) issue(issues, `${path}.learnerGraph.statements[${i}]`, "invariant", `Unclassified learner statement: ${s.id}.`);
+    if (!learnerUsage.has(s.id)) issue(issues, `${path}.learnerGraph.statements[${i}]`, "invariant", `Unclassified learner statement: ${s.id}.`, { ruleId: "unclassified_learner_claim", ids: { statementId: s.id } });
+  });
+  const alignments = evaluation.conceptAlignments ?? [];
+  unique(alignments.map(a => a.learnerConceptId), `${path}.conceptAlignments`, issues, "learnerConceptId");
+  alignments.forEach((a, i) => {
+    const p = `${path}.conceptAlignments[${i}]`;
+    exists(a.learnerConceptId, new Set(learner.concepts.map(c => c.id)), `${p}.learnerConceptId`, issues);
+    exists(a.referenceConceptId, new Set(source.graph.concepts.map(c => c.id)), `${p}.referenceConceptId`, issues);
+    // A semantic alignment must be supported by a comparison joining those claims.
+    const supported = evaluation.comparisons.some(c => c.learnerStatements.some(ref => {
+      const ls = learner.statements.find(s => s.id === ref.statementId);
+      const rs = source.graph.statements.find(s => s.id === c.referenceRelationshipId);
+      return ls && rs && referencedConceptIds(ls.representation).includes(a.learnerConceptId) && referencedConceptIds(rs.representation).includes(a.referenceConceptId);
+    }));
+    if (!supported) issue(issues, p, "reference", "Concept alignment must be supported by a linked source/learner statement comparison.", { ruleId: "unsupported_concept_alignment", ids: { learnerConceptId: a.learnerConceptId, referenceConceptId: a.referenceConceptId } });
   });
 }
 

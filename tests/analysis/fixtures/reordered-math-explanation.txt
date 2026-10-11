@@ -1,0 +1,17 @@
+I will start with graphs. For the graphs discussed here, the edges are undirected, and a simple graph does not allow loops or parallel edges. The degree of a vertex counts the edges touching it. If we add the degrees of every vertex, we get twice the number of edges, since each edge contributes once at each endpoint.
+
+A tree is a connected graph with no cycles. However, I think there are exactly two simple paths between every pair of distinct vertices in a tree. I also think that any simple undirected graph with n vertices and n - 1 edges must be a tree, even if we have not checked connectivity.
+
+For propositional logic, a proposition is a statement that is either true or false. A conjunction requires both statements to be true. An OR statement is true when exactly one of its two propositions is true, so it becomes false if both propositions are true.
+
+The implication p implies q fails only when p is true and q is false. Its contrapositive is NOT q implies NOT p, and these two statements have the same truth value in every case. I think the converse q implies p is also always equivalent to the original implication.
+
+For sets, the union contains elements belonging to either set, including elements shared by both. The intersection contains only the shared elements. A minus B means the elements in A that are absent from B. When counting a finite union, I would add the sizes of A and B and then add the size of their intersection, because shared elements need an extra count.
+
+A function assigns exactly one output to each input. An injective function does not send two distinct inputs to the same output. I would describe a surjective function as one that reaches many elements of its codomain, although I have not specified whether it must reach every element. A bijection is both injective and surjective. If two finite sets have equal sizes, then every function between them is automatically bijective.
+
+For quantifiers, a universal statement has to hold for every element, while an existential statement only needs one example. To say that not every element satisfies P, we say that there is at least one element for which P is false.
+
+Over the integers, for every x we can find a larger y by choosing x + 1. I am not sure whether a single fixed integer y could also be greater than every integer x; I have not decided whether that statement is true or false.
+
+Finally, an equivalence relation is symmetric and transitive. Its classes group related elements together. Antisymmetry means that a relation can never contain both aRb and bRa, even when a and b are the same element.

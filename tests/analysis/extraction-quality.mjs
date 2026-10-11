@@ -119,7 +119,7 @@ test("inverse predicates, multiple participants, distinct energies and valid ref
   const inverse = one("The procedure is carried out by workers.", [{ id: "p", name: "Procedure", aliases: [] }, { id: "w", name: "Workers", aliases: [] }], { kind: "binary", subjectConceptId: "p", relation: "is carried out by", objectConceptId: "w" });
   assert.equal(normalizeAnalysisDraft(inverse.importedSource, inverse.draft).graph.statements[0].representation.kind, "binary");
   const complex = one("Light energy is converted into chemical energy by the device.", [{ id: "l", name: "Light energy", aliases: [] }, { id: "c", name: "Chemical energy", aliases: [] }, { id: "d", name: "Device", aliases: [] }], { kind: "complex", participants: [{ conceptId: "l", role: "input" }, { conceptId: "c", role: "output" }, { conceptId: "d", role: "agent" }] });
-  const r = normalizeAnalysisDraft(complex.importedSource, complex.draft); assert.equal(r.graph.concepts.length, 3); assert.equal(toReferenceFlow(r.graph, r.graph.topics[0].id).edges.length, 0);
+  const r = normalizeAnalysisDraft(complex.importedSource, complex.draft); assert.equal(r.graph.concepts.length, 3); assert.equal(toReferenceFlow(r.graph, r.graph.topics[0].id).edges.length, 3);
   const reflexive = one("System regulates itself.", [{ id: "x", name: "System", aliases: [] }], { kind: "binary", subjectConceptId: "x", relation: "regulates", objectConceptId: "x" });
   const loop = normalizeAnalysisDraft(reflexive.importedSource, reflexive.draft).graph.statements[0];
   assert.equal(loop.representation.subjectConceptId, loop.representation.objectConceptId);

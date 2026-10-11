@@ -22,7 +22,8 @@ function checkFlow(graph) {
       const nodes = new Map(flow.nodes.map(n => [n.id, n]));
       const used = new Set(graph.statements.filter(s => s.topicId === topic.id).flatMap(s => s.representation.kind === "binary" ? [s.representation.subjectConceptId, s.representation.objectConceptId] : s.representation.participants.map(p => p.conceptId)));
       const concepts = graph.concepts.filter(c => used.has(c.id));
-      assert.equal(flow.nodes.length, concepts.length);
+      const selected = graph.statements.filter(s => s.topicId === topic.id);
+      assert.equal(flow.nodes.length, concepts.length + selected.filter(s => s.representation.kind === "complex").length);
       for (const concept of concepts) assert.ok(nodes.has(`${graph.id}:${concept.id}`));
       for (const statement of graph.statements.filter(s => s.topicId === topic.id && s.representation.kind === "binary")) {
         const edge = flow.edges.find(e => e.id === statement.id);
@@ -35,7 +36,7 @@ function checkFlow(graph) {
         assert.equal(edge.markerEnd.type, "arrowclosed");
         assert.ok(nodes.has(edge.source)); assert.ok(nodes.has(edge.target));
       }
-      assert.equal(flow.edges.length, graph.statements.filter(s => s.topicId === topic.id && s.representation.kind === "binary").length);
+      assert.equal(flow.edges.length, selected.reduce((n, s) => n + (s.representation.kind === "binary" ? 1 : s.representation.participants.length), 0));
     }
   }
   assert.deepEqual(graph, original);

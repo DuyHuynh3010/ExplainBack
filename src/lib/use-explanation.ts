@@ -50,8 +50,10 @@ export function useExplanation() {
     importedFile.current = { file, text: data.normalizedText }; return data.normalizedText;
   }
   async function evaluate(input: EvaluateTextRequest) {
+    if (evaluation) return true; // Input changes invalidate it; reopening never regenerates.
     const data = await run("evaluating", signal => evaluateExplanation(input, signal));
     if (data) setEvaluation(data);
+    return !!data;
   }
   return { phase, error, transcription, evaluation, invalidate, transcribe, importFile, evaluate };
 }

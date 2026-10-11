@@ -1,8 +1,8 @@
 import type { AnalyzeSourceResponse } from "../contracts/api";
 import { randomUUID } from "node:crypto";
-import { createAnalysisDiagnostic, createAnalysisCapture, type AnalysisDiagnostic } from "./diagnostics";
+import { createAnalysisDiagnostic, createAnalysisCapture, diagnosticDetails, type AnalysisDiagnostic } from "./diagnostics";
 import type { AnalysisProvider } from "./provider";
-import { AnalysisError } from "./errors";
+import { AnalysisError, DraftError } from "./errors";
 import { ANALYSIS_LIMITS } from "./limits";
 import { createGeminiProvider } from "./gemini";
 import { analyzeImportedSource, validateAnalysisInput } from "./pipeline";
@@ -52,7 +52,8 @@ export async function handleAnalysisRequest(request: Request, providerFactory: (
     const safe = error instanceof AnalysisError ? error : new AnalysisError("ANALYSIS_FAILED", 500, "Source analysis could not be completed.");
     diagnostic({ stage: "request_failed", code: safe.code, retryAfterSeconds: safe.retryAfterSeconds });
     if (safe.retryAfterSeconds !== undefined) headers["retry-after"] = String(safe.retryAfterSeconds);
-    const body: AnalyzeSourceResponse = { ok: false, schemaVersion: "2.0", error: { code: safe.code, message: safe.message, retryable: safe.retryable } };
+    const issues = safe instanceof DraftError ? safe.issues : safe instanceof SectionFailure ? safe.issues : undefined;
+    const body: AnalyzeSourceResponse = { ok: false, schemaVersion: "2.0", error: { code: safe.code, message: safe.message, retryable: safe.retryable, ...(issues?.length ? { details: diagnosticDetails(issues) } : {}) } };
     return Response.json({ ...body, ...(safe instanceof SectionFailure ? { processing: { callsUsed: safe.callsUsed } } : {}) }, { status: safe.status, headers });
   }
 }

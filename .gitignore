@@ -2,6 +2,7 @@ node_modules/
 .next/
 out/
 test-results/
+.explainback-artifacts/
 playwright-report/
 *.tsbuildinfo
 .env*

@@ -1,6 +1,7 @@
 import type { AnalyzeImportedSourceRequest } from "../contracts/api";
 import type { AnalysisDraft } from "./draft";
 import type { DraftIssue } from "./errors";
+import { REPRESENTATION_INSTRUCTION } from "./representation-instruction";
 
 export interface AnalysisRepair { error: string; issues: DraftIssue[]; previousDraft?: AnalysisDraft }
 
@@ -10,6 +11,9 @@ Use no external knowledge, tools or search. Preserve source claims, including mi
 do not solve questions, add missing knowledge or reconstruct lost mathematical formatting.
 Account for every supplied block once in blockDispositions: knowledge, questions, mixed,
 or other. License/attribution alone is other; mixed learning and license text is knowledge.
+Standalone section headings are other: they organize claims, but assert no knowledge
+by themselves. A heading followed by substantive content in the SAME block is not
+heading-only; classify that block from its content and extract its supported claims.
 Keep all original content through its supplied block IDs. Never silently skip source sections.
 Create topics for organization, and assign each statement ONE primary topicId. Concepts
 are canonical across the WHOLE document, not owned by topics. Reuse the same concept ID
@@ -83,6 +87,27 @@ participants.
 Use explicit, meaningful affirmative relation labels. Put negation only in negated and
 in the assertion: "does not require" is relation "requires", negated true. Preserve
 conditional meaning; a positive conditional assertion is not necessarily negated.
+The negated flag describes denial of the represented claim, not an operator inside a
+formula, a false truth value, or uncertainty such as "not sure". An asserted equivalence
+to an expression containing NOT is affirmative. Keep complete expressions and their
+quantifier scope; use complex when binary endpoints cannot express the whole claim.
+"X has no Y" or "X does not contain Y" with positive object Y uses an affirmative
+relation has/contains and negated=true. Conversely, "X is a Z with no Y" can affirm
+the complete property Z-with-no-Y with negated=false; do not negate is(Z) because
+of a nested absence. Keep no/without inside the complete property or complex claim
+when that is the chosen representation. "Not necessarily" does not assert the
+opposite predicate: retain that modal scope in assertion/conditions or a complex claim.
+"Exactly when" and other truth conditions belong in the assertion and conditions.
+Do not split AND/OR inside an expression as if they were independent output objects.
+For a truth-value assertion, the value is True or False, not the category Truth value.
+An assertion that an expression is false is still an affirmative truth-value claim;
+do not render it as denial of belonging to a generic Truth value concept. Equivalences
+need the complete expressions, not just their connective categories. A formula field
+supplements a faithful representation; it does not fix incompatible binary endpoints.
+If a formula, quantified predicate or property cannot be fully represented by the
+chosen endpoints/conditions, preserve it as complex with its actual operands and roles.
+An assertion of a property is not a reflexive relation: never replace the property or
+missing input/output with the subject itself to fill a binary endpoint.
 Evidence is supplied blockId plus exact verbatim quote. Do NOT supply offsets, verified,
 or contextBefore/contextAfter: the backend locates quotes and derives adjacent context.
 Choose a sufficiently distinctive exact excerpt; never paraphrase inside a quote.
@@ -101,7 +126,8 @@ each binary projection and each complex participant set expresses its own assert
 independent assertions must not reuse an unsplit multi-claim sentence. Confirm summaries
 are supported by their linked statements and quotes, not outside knowledge. This check
 uses the same generation; do not output a checklist or additional schema fields.
-Use outputLanguage for generated content; source means source language. Quotes stay exact.`;
+Use outputLanguage for generated content; source means source language. Quotes stay exact.
+${REPRESENTATION_INSTRUCTION}`;
 
 export function buildAnalysisPrompt(request: AnalyzeImportedSourceRequest, repair?: string | AnalysisRepair): string {
   return JSON.stringify({
