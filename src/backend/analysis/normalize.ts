@@ -8,6 +8,7 @@ import { ANALYSIS_LIMITS } from "./limits";
 import type { AnalysisDraft } from "./draft";
 import { AnalysisError, DraftError, type DraftIssue } from "./errors";
 import { checkDraftReferences } from "./draft-references";
+import { reviewExtraction } from "./review";
 
 function fail(message: string, path = "$", code: DraftIssue["code"] = "invariant", ids?: Record<string, string>): never { throw new DraftError(message, [{ path, code, message, ...(ids ? { ids } : {}) }]); }
 function uniqueIds<T extends { id: string }>(items: T[], path: string): Map<string, T> {
@@ -135,6 +136,9 @@ export function normalizeAnalysisDraft(source: ImportedSource, draft: AnalysisDr
   }
   for (const finding of quality.filter(i => i.severity === "review")) {
     analysisWarnings.push({ code: "EXTRACTION_REVIEW", statementId: reference(statementIds, finding.ids.statementId), message: finding.message });
+  }
+  for (const { warning, draftStatementId } of reviewExtraction(source, draft)) {
+    analysisWarnings.push({ ...warning, ...(draftStatementId ? { statementId: reference(statementIds, draftStatementId) } : {}) });
   }
   const usedConcepts = new Set(statements.flatMap(s => referencedConceptIds(s.representation)));
   for (const c of concepts) if (!usedConcepts.has(c.id)) analysisWarnings.push({ code: "UNUSED_CONCEPT", conceptId: c.id, message: "An extracted concept has no statement. Structural block coverage does not prove complete knowledge coverage." });

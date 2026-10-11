@@ -1,8 +1,22 @@
 import { MarkerType, Position, type Edge, type Node } from "@xyflow/react";
-import type { KnowledgeGraph } from "@/backend/contracts/domain";
+import type { KnowledgeGraph, Statement, Concept } from "@/backend/contracts/domain";
 import { referencedConceptIds, statementLabel } from "../backend/contracts/graph";
+import { explicitScopes } from "../backend/contracts/statement-scope";
 
-export type ReferenceEdge = Edge<{ offset: number; selfLoop: boolean; statementId: string }>;
+export type ReferenceEdge = Edge<{ offset: number; selfLoop: boolean; statementId: string; assertion: string }>;
+
+/** Keep statement-level qualifiers visible without changing document-wide nodes. */
+export function referenceRelationshipLabel(statement: Statement, concepts: Concept[]): string {
+  if (statement.representation.kind === "complex") return statement.assertion;
+  const ids = new Set(referencedConceptIds(statement.representation));
+  const scopes = explicitScopes(statement.assertion, concepts.filter(c => ids.has(c.id)));
+  const details = [...statement.conditions];
+  for (const scope of scopes) if (!details.some(c => c.toLowerCase().includes(scope.toLowerCase()))) details.push(scope);
+  // A qualified paraphrase may not use the concept's literal name. Show the actual
+  // assertion rather than manufacturing a broad relation from an unknown scope.
+  if (!scopes.length && /\b(?:some|most|only|not all)\b/i.test(statement.assertion) && !details.length) return statement.assertion;
+  return `${statementLabel(statement)}${details.length ? ` · ${[...new Set(details)].join("; ")}` : ""}`;
+}
 
 /** Deterministic frontend grid; selected endpoints/participants are visible; only binary statements become edges. */
 export function toReferenceFlow(graph: KnowledgeGraph, topicId: string, options: { columns?: number } = {}): { nodes: Node[]; edges: ReferenceEdge[] } {
@@ -28,9 +42,9 @@ export function toReferenceFlow(graph: KnowledgeGraph, topicId: string, options:
     const direction = statement.subjectConceptId <= statement.objectConceptId ? 1 : -1;
     return {
       id: statement.id, source: nodeId(statement.subjectConceptId), target: nodeId(statement.objectConceptId),
-      type: "reference", label: statementLabel(statement),
+      type: "reference", label: referenceRelationshipLabel(statement, graph.concepts),
       data: { offset: statement.subjectConceptId === statement.objectConceptId ? group.indexOf(statement) * 45 : (group.indexOf(statement) - (group.length - 1) / 2) * 65 * direction,
-        selfLoop: statement.subjectConceptId === statement.objectConceptId, statementId: statement.id },
+        selfLoop: statement.subjectConceptId === statement.objectConceptId, statementId: statement.id, assertion: statement.assertion },
       markerEnd: { type: MarkerType.ArrowClosed, color: "#74817d" },
       style: { stroke: "#74817d", strokeWidth: 1.8 },
     };

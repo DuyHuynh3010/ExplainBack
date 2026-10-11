@@ -1,4 +1,5 @@
 import type { EvaluationResult, ImportedSource, SchemaVersion, SourceAnalysis } from "./domain";
+import type { CompletedPart, PartProgress } from "../analysis/sections";
 
 export interface AnalyzeTextRequest {
   schemaVersion: SchemaVersion;
@@ -25,6 +26,12 @@ export interface AnalyzeImportedSourceRequest {
   /** Omitted means the source language; quotes always remain verbatim. */
   outputLanguage?: "source" | "en" | "vi";
 }
+
+/** Opt-in stateless, sequential /api/analysis orchestration. No server-side storage. */
+export interface AnalyzeSectionedSourceRequest extends AnalyzeImportedSourceRequest {
+  processing: { completedParts: CompletedPart[]; callsUsed: number };
+}
+export type SectionedSourceResponse = ApiResponse<PartProgress | SourceAnalysis> & { processing?: { callsUsed: number } };
 
 export interface EvaluateTextRequest {
   schemaVersion: SchemaVersion;

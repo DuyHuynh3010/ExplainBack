@@ -19,21 +19,67 @@ just to make endpoint validation pass. Do not duplicate concepts by topic. Every
 or participant references an existing canonical concept ID. Extract only used concepts.
 A statement is the unit of knowledge and evaluation. Preserve its full assertion, polarity,
 conditions, essential participants, formula when present, role, and source evidence.
+Read each source clause before choosing a graph representation. Preserve explanatory
+definitions as knowledge, not just their names: "X is transformed, meaning it loses Y"
+needs both transformation and loss, either faithful linked statements about X or one
+complete complex statement. A summary mentioning the explanation is not a substitute
+for extracting it. Resolve pronouns only from their supported source antecedent.
+The word "meaning" does not require complex representation. A definition can support
+separate linked binary claims for the named change and its explanatory action, each
+with a complete assertion and the same supporting quote. Keep the original process,
+location and other context in assertion/conditions on every claim to which it applies.
+Keep quantifiers such as most, some, some types of, only and not all in the assertion
+AND conditions, including which participant they qualify. Use the general canonical
+concept rather than cloning it for a qualifier. Do not strengthen a qualified claim.
+Do not distribute a shared modifier across a conjunction unless the source establishes
+that distribution. "A takes X and Y from M and N" does not establish X-from-both or
+Y-from-both, or an X-M/Y-N pairing. Preserve the joint wording in one complex claim
+with roles and a condition that the input/location pairing is unspecified by the source.
 Choose representation.kind binary ONLY when subject + affirmative relation + object +
 conditions express the SAME claim as assertion. Supply the actual object, even if a new
 concept is needed. "Glucose stores chemical energy" has Chemical energy as object, never
 Photosynthesis. "X is inside Y" must not become X -> inside -> X. Reflexive claims may
 legitimately have self-loops; never use self-loops as placeholders for missing objects.
+Prefer binary when that test holds; conditions, negation, qualifiers, sentence length
+and the number of nouns are not reasons by themselves to choose complex. Choose by
+the meaning of the claim, not by counting participants or matching a keyword.
 Split independent claims: "P produces A and B" becomes "P produces A" and "P produces B",
 which may share one exact quote. Do not leave the unsplit assertion on either partial edge.
+Likewise independent intake claims for each input can be binary, retaining the process
+context but not assigning ambiguous joint locations to either input. Keep the joint
+input/location claim above separately when needed to preserve the source's full meaning.
 Write standalone assertions for binary statements, resolving source pronouns when
 their referent is supported. Do not copy the same multi-agent assertion onto separate
 agent edges. Preserve distinctions between an entity and its location, owner, input,
 output or type of energy; related concepts are not interchangeable endpoints.
+Several subjects do not automatically require complex: independently asserted actions
+can be separate binary claims with their own subject, scope and supported evidence.
+Do not distribute a genuinely joint action or a shared dependency into independent claims.
 If decomposition loses essential joint dependencies or participants, use kind complex with
 participants [{conceptId, role}], no binary endpoints. Keep the complete assertion and
 conditions. For a process using multiple inputs and producing multiple outputs, roles can
 be agent/input/output/location. Never make an input the agent of the whole process.
+Include essential participants in chained assertions: an output stored in a carrier
+requires the carrier, not just the output. Alternatively extract the storage claim
+separately with its own complete assertion and the SAME supporting evidence quote;
+keep that carrier relationship explicitly linked through shared evidence and lesson IDs.
+Roles describe the actual claim: an actor is agent, a named process may be process or
+context, and a mentioned noun is not automatically agent. Do not require incidental
+nouns in quotes to become concepts. Do not turn every long sentence into complex.
+When keeping a complex claim, enumerate EVERY essential actor and other participant
+with its actual role. Multiple participants may have the SAME role; retain all of them,
+not a representative or the first actor. For "Teams, volunteers, and some contractors
+jointly move cargo using trucks", include Teams, Volunteers and Contractors as agents,
+Cargo as the moved object and Trucks as the means. Keep "some contractors" in assertion
+and conditions without cloning the canonical Contractors concept. Follow a supported
+antecedent across clauses before assigning roles; do not infer roles just from a name
+occurring in assertion. Apply the complete actor set separately to each derived claim
+it supports. In "A, B and some C, which capture an input to produce X and Y", the
+relative clause refers to ALL named actors. Preserve them on each production claim
+or explicitly extract each supported actor's independent claim; do not substitute
+the process name for these actors. A separate storage claim does not replace the
+production of that stored output. Never convert complex by selecting its first two
+participants.
 Use explicit, meaningful affirmative relation labels. Put negation only in negated and
 in the assertion: "does not require" is relation "requires", negated true. Preserve
 conditional meaning; a positive conditional assertion is not necessarily negated.
@@ -49,6 +95,12 @@ primary topic. Both binary and complex statements support lessons and must be re
 Structural coverage of blocks is not proof that every idea was extracted. Use compact
 quotes and concise supported assertions to fit the bounded response, not fewer topics or
 omitted claims to avoid validation. No scores, learner statuses or layout coordinates.
+Before returning, check every source clause, including definitions, products, storage,
+transfers, qualifiers and conditions, against the extracted statements. Confirm that
+each binary projection and each complex participant set expresses its own assertion;
+independent assertions must not reuse an unsplit multi-claim sentence. Confirm summaries
+are supported by their linked statements and quotes, not outside knowledge. This check
+uses the same generation; do not output a checklist or additional schema fields.
 Use outputLanguage for generated content; source means source language. Quotes stay exact.`;
 
 export function buildAnalysisPrompt(request: AnalyzeImportedSourceRequest, repair?: string | AnalysisRepair): string {

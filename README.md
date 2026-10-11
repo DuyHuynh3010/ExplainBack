@@ -1,5 +1,8 @@
 # ExplainBack
 
+[Multi-section source analysis](docs/topic-processing.md) implements bounded sequential
+processing, local retry checkpoints and topic graph/summary switching on contract 2.0.
+
 An educational workspace that imports text/PDF/DOCX, analyzes sources through Gemini, and displays topic summaries and a reference knowledge graph. Built with Next.js App Router, TypeScript, Tailwind CSS, and React Flow. All UI session state is local React state and resets on reload. Voice transcription, editable explanations and evidence-based learner feedback are available through backend Gemini endpoints.
 
 ## Team documentation
@@ -10,6 +13,11 @@ The current [graph/API contract is v2](docs/backend-contract-v2.md): document-wi
 concepts, binary relationships and complex statement cards. Reset/re-import v1
 sessions. See [verification results and remaining live extraction gaps](docs/graph-v2-verification.md)
 before treating a generated graph as verified knowledge.
+
+[Extraction quality follow-up](docs/extraction-quality-v2.md) documents qualified
+edge labels, source review diagnostics and statement-local repair. Offline checks
+pass; the new real two-paragraph attempt was blocked by provider 503, so improved
+live semantic coverage is not established.
 
 ## Run locally
 

@@ -1,4 +1,4 @@
-/** Conservative one-request scope. Reject larger inputs; no batching or truncation. */
+/** Document-wide limits; opt-in section processing shares these with evaluation. */
 export const ANALYSIS_LIMITS = {
   requestBytes: 1_000_000,
   sourceCharacters: 20_000,

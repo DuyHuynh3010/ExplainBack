@@ -1,5 +1,10 @@
 # Graph contract v2: document-wide concepts and statement views
 
+The [multi-section follow-up](topic-processing.md) adds opt-in sequential extraction
+and checkpoints without changing the final graph/evaluation contract. Its document-wide
+limits remain those below; the eight-generation orchestration budget supplements the
+legacy two-generation single-call operation.
+
 This is an incompatible replacement of the v1 graph contract. All current API
 envelopes and versioned requests use `schemaVersion: "2.0"`, including ingestion
 and transcription envelopes whose content otherwise stays the same. Old `1.0`
@@ -78,8 +83,20 @@ discriminator but omits the previously rejected array min/max keywords; local
 validation keeps all array bounds. Truncated output never becomes a partial graph.
 
 Source analysis still allows at most two generations, initial plus one invalid-output
-repair. Repair receives original blocks, previous draft as untrusted data and precise
-issues. SDK attempts remain one. Provider failures/quota/timeouts are not retried.
+repair. When every error targets a known statement, repair receives only those claims,
+their original source blocks, canonical concept catalog and affected lessons. The patch
+keeps statement/topic IDs, all good claims, existing concepts and lesson links; backend
+merges it and revalidates the entire extraction. Malformed JSON/global structure without
+identifiable claims retains the bounded complete regeneration. SDK attempts remain one.
+Provider failures/quota/timeouts are not retried.
+
+Source-only `EXTRACTION_REVIEW` diagnostics now also flag literal signs of lost
+scope, known concepts omitted from complex participants without another claim sharing
+the same exact evidence, and uncovered explicit `meaning` clauses. These are review
+cues, not entailment errors: paraphrase, incidental mentions or separate evidence may
+explain them. They do not reject/repair output or alter evaluation rules. The prompt
+requests clause/definition coverage, qualified assertions and conditions, meaningful
+participant roles and conservative handling of shared modifiers.
 
 ## API and consumers
 
@@ -132,6 +149,10 @@ cards with roles/evidence/status, not fabricated edges. Topic changes remount th
 selection panel, so no out-of-topic selection survives. Evaluation overlays exact
 reference IDs on binary edges and complex cards. Existing grid layout/zoom is retained;
 dense labels/crossings are not solved by this architecture change.
+Binary edge labels also expose existing statement conditions and recognized English
+scope phrases from the assertion. A qualified paraphrase without a literal concept
+match can use the full assertion as its label. The assertion is available as a tooltip;
+no node identity, endpoint or backend coordinate changes are made.
 
 ## Verification commands
 
