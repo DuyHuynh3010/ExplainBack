@@ -68,7 +68,7 @@ export function AppShell() {
     if (view === "lesson" && [ALL_TOPICS, ADDITIONAL_IDEAS].includes(topicId)) setTopicId(session.analysis!.graph.topics[0].id);
     setGraphView(view);
   }
-  const lessonTopic = session.analysis?.graph.topics.some(t => t.id === topicId) ? topicId : session.analysis?.graph.topics[0].id ?? "";
+  const lessonTopic = topicId === ALL_TOPICS || session.analysis?.graph.topics.some(t => t.id === topicId) ? topicId : session.analysis?.graph.topics[0].id ?? "";
 
   return <>
     <header className="app-header"><div className="header-inner">

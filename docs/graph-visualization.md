@@ -102,3 +102,18 @@ opt-in and are not needed for this change.
 Layout references: [React Flow node measurements](https://reactflow.dev/api-reference/hooks/use-nodes-initialized),
 [ELK with multiple handles](https://reactflow.dev/examples/layout/elkjs-multiple-handles),
 [ELK orthogonal routing](https://eclipse.dev/elk/reference/options/org-eclipse-elk-edgeRouting.html).
+
+## Lesson scope
+
+Lesson opens on the first topic. Its topic selector also offers **All topics**:
+one canvas renders all source binary claims and complex claim cards, using the
+cached `SourceAnalysis`. Shared concepts retain a single document-wide node ID.
+All-topic summaries remain separated and titled by topic; supporting statements
+open their original source evidence. Each scope keeps only selections belonging
+to that scope. Topic changes, fullscreen and zoom make no API or AI requests.
+Explanation and Compare retain their existing All topics behavior.
+
+Offline coverage: `tests/analysis/lesson-all-topics.mjs` generates a synthetic
+three-topic fixture with shared concepts and a complex claim;
+`tests/lesson-all-topics.spec.ts` replays it with intercepted APIs on desktop and
+mobile, including evidence selection, fullscreen, wheel zoom and network checks.
