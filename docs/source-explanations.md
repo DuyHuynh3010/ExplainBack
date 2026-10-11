@@ -126,11 +126,12 @@ Output is `ApiResponse<EvaluationResult>` using the existing domain contract:
 - The source graph is not replaced. `sourceAnalysisId` points to the supplied
   analysis, and every comparison has its original `referenceRelationshipId` plus
   `sourceStatements: [{ graphId, statementId }]` pointing into that source graph.
-- Block 3C returns one comparison per selected reference statement. The new
-  relationship ID alias is optional for old grouped examples; when supplied it
-  must match the sole source reference. New endpoint outputs always include it.
-- Learner graph/document/concepts/statements/evidence receive new opaque IDs;
-  learner topics explicitly map to selected source topic IDs.
+- Block 3C returns one comparison per selected reference statement, binary or
+  complex. `referenceRelationshipId` is required and must match its sole source
+  reference; matching does not depend on topic order or learner claim order.
+- Learner graph/document/concepts/statements/evidence receive new opaque IDs.
+  Learner concepts belong to the learner document; learner topics are independent
+  of source topics. Comparisons retain source topic IDs for frontend grouping.
 - Source evidence is resolved through the source reference and statement's
   `evidenceIds`; learner evidence through `learnerStatements` and learner graph
   `evidenceIds`. Quotes are not duplicated into a parallel feedback schema.

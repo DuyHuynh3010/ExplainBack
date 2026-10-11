@@ -20,8 +20,8 @@ and warnings. SourceAnalysis retains the exact imported document/blocks and copi
 warnings into `sourceWarnings`; it adds topics, reference knowledge and lessons.
 `provenance: analysis` means the analysis operation ran, not that every assertion
 is independently scientifically verified. Optional `analysisWarnings` carries
-block-scoped repeated-quote and question/exercise caveats. Legacy Block 1 fixtures
-remain `synthetic_demo`, and all existing contract fields remain compatible.
+repeated-quote, question/exercise, projection-review and coverage caveats. Block 1
+fixtures remain `synthetic_demo` and now use v2; old v1 payloads are rejected.
 
 ## POST /api/analysis
 
@@ -55,12 +55,12 @@ HTTP 200 uses `ApiResponse<SourceAnalysis>`:
       id: /* graph UUID */, documentId: /* same document ID */, kind: "source",
       topics: /* topic IDs and titles */,
       concepts: /* document-wide canonical names, aliases, document ownership and optional symbols */,
-      statements: /* atomic directed assertions, polarity, conditions and evidence IDs */,
+      statements: /* binary or complex representations, full assertions, polarity, conditions and evidence IDs */,
       evidence: /* original quotes, block IDs, verification and optional block-local offsets */
     },
     lessonSections: /* one summary/key-point section per topic, linked to statement IDs */,
     sourceWarnings: /* exact importedSource.warnings */,
-    analysisWarnings: /* block-scoped AMBIGUOUS_EVIDENCE / QUESTIONS_PRESENT */
+    analysisWarnings: /* AMBIGUOUS_EVIDENCE / QUESTIONS_PRESENT / EXTRACTION_REVIEW / UNUSED_CONCEPT / COVERAGE_LIMIT */
   }
 }
 ```
