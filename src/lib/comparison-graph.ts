@@ -16,6 +16,13 @@ function flowFor(graph: KnowledgeGraph, statements: Statement[]) {
   const view = { ...graph, statements: statements.map(s => ({ ...s, topicId: "view" })) };
   return toReferenceFlow(view, "view");
 }
+/** Cached source scope only; shared concepts retain their document-wide IDs. */
+export function toLessonFlow(graph: KnowledgeGraph, topicId: string): ExplorerFlow {
+  const statements = [...new Map(graph.statements
+    .filter(s => topicId === ALL_TOPICS || s.topicId === topicId)
+    .map(s => [s.id, s])).values()];
+  return { ...flowFor(graph, statements), details: statements.map(s => ({ id: s.id, lesson: [s], learner: [] })) };
+}
 function decorate(graph: KnowledgeGraph, statements: Statement[], origin: "lesson" | "explanation") {
   const flow = flowFor(graph, statements);
   return {
