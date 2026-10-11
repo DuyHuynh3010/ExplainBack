@@ -1,5 +1,5 @@
-/** Backend domain contract v1. No React Flow types, layout, scores or AI calls. */
-export type SchemaVersion = "1.0";
+/** Backend contract v2: document-wide concepts and explicit statement representations. */
+export type SchemaVersion = "2.0";
 export type EvaluationStatus = "correct" | "partial" | "contradicted" | "missing" | "uncertain";
 export type Provenance = "synthetic_demo" | "analysis";
 
@@ -63,13 +63,11 @@ export interface ImportedSource {
 export interface Topic {
   id: string;
   title: string;
-  /** Required on learner topics, absent on source topics. Points into source graph. */
-  sourceTopicId?: string;
 }
 
 export interface Concept {
   id: string;
-  topicId: string;
+  documentId: string;
   name: string;
   aliases: string[];
   symbol?: string;
@@ -83,6 +81,9 @@ export interface Evidence {
   kind: "source_quote" | "learner_quote";
   /** Verifies quote occurrence/location, NOT scientific truth or entailment. */
   verification: "verified" | "unverified";
+  /** Derived by the backend from a uniquely located quote. */
+  contextBefore?: string;
+  contextAfter?: string;
   location?: {
     page?: number;
     /** Zero-based UTF-16 offsets in block.text; end is exclusive. */
@@ -90,13 +91,15 @@ export interface Evidence {
   };
 }
 
+export type StatementRepresentation =
+  | { kind: "binary"; subjectConceptId: string; relation: string; objectConceptId: string }
+  | { kind: "complex"; participants: { conceptId: string; role: string }[] };
+
 export interface Statement {
   id: string;
   topicId: string;
-  subjectConceptId: string;
-  relation: string;
-  objectConceptId: string;
-  /** One complete atomic assertion, including polarity and conditions. */
+  representation: StatementRepresentation;
+  /** One complete claim, including essential participants, polarity and conditions. */
   assertion: string;
   negated: boolean;
   conditions: string[];
@@ -137,9 +140,11 @@ export interface SourceAnalysis {
 }
 
 export interface AnalysisWarning {
-  code: "AMBIGUOUS_EVIDENCE" | "QUESTIONS_PRESENT";
+  code: "AMBIGUOUS_EVIDENCE" | "QUESTIONS_PRESENT" | "EXTRACTION_REVIEW" | "UNUSED_CONCEPT" | "COVERAGE_LIMIT";
   message: string;
-  blockId: string;
+  blockId?: string;
+  statementId?: string;
+  conceptId?: string;
 }
 
 export interface StatementRef {
@@ -149,8 +154,8 @@ export interface StatementRef {
 
 export interface ComparisonItem {
   id: string;
-  /** Block 3C emits one comparison per source statement. Legacy grouped items may omit this. */
-  referenceRelationshipId?: string;
+  /** Exactly one comparison per selected source statement, binary or complex. */
+  referenceRelationshipId: string;
   /** Always a topic ID in the source graph. */
   topicId: string;
   sourceStatements: StatementRef[];
@@ -164,7 +169,7 @@ export interface ComparisonItem {
 export interface AdditionalIdea {
   id: string;
   /** Source topic for grouping; this is NOT a correctness verdict. */
-  topicId: string;
+  topicId?: string;
   learnerStatements: StatementRef[];
   explanation: string;
 }

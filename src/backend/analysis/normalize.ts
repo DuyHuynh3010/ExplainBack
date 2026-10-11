@@ -1,20 +1,25 @@
 import { randomUUID } from "node:crypto";
 import type { AnalysisWarning, Concept, Evidence, ImportedSource, SourceAnalysis, Statement } from "../contracts/domain";
 import { validateSourceAnalysis } from "../contracts/validate";
-import type { AnalysisDraft, DraftEvidence } from "./draft";
-import { AnalysisError, DraftError } from "./errors";
+import { locateQuote } from "./evidence";
+import { referencedConceptIds } from "../contracts/graph";
+import { inspectStatement, inspectRepeatedAssertions } from "../contracts/statement-quality";
+import { ANALYSIS_LIMITS } from "./limits";
+import type { AnalysisDraft } from "./draft";
+import { AnalysisError, DraftError, type DraftIssue } from "./errors";
+import { checkDraftReferences } from "./draft-references";
 
-function fail(message: string): never { throw new DraftError(message); }
-function uniqueIds<T extends { id: string }>(items: T[]): Map<string, T> {
+function fail(message: string, path = "$", code: DraftIssue["code"] = "invariant", ids?: Record<string, string>): never { throw new DraftError(message, [{ path, code, message, ...(ids ? { ids } : {}) }]); }
+function uniqueIds<T extends { id: string }>(items: T[], path: string): Map<string, T> {
   const map = new Map<string, T>();
-  for (const item of items) {
-    if (!/^[A-Za-z0-9][A-Za-z0-9._:-]*$/.test(item.id) || map.has(item.id)) fail("Draft IDs must be valid and unique within each collection.");
+  for (const [index, item] of items.entries()) {
+    if (!/^[A-Za-z0-9][A-Za-z0-9._:-]*$/.test(item.id) || map.has(item.id)) fail("Draft IDs must be valid and unique within each collection.", `${path}[${index}].id`, "invariant", { entityId: item.id });
     map.set(item.id, item);
   }
   return map;
 }
 function reference(map: Map<string, string>, id: string): string {
-  return map.get(id) ?? fail("AI output references an unknown entity.");
+  return map.get(id) ?? fail("AI output references an unknown entity.", "$", "reference", { referencedId: id });
 }
 
 /** A conservative lexical guard for explicit question-only text, not a semantic classifier. */
@@ -23,50 +28,45 @@ export function isExplicitQuestionText(text: string): boolean {
   return sentences.length > 0 && sentences.every(s => /[?？]$/.test(s.trim()));
 }
 
-function evidenceSpan(text: string, evidence: DraftEvidence): { start: number; end: number } | undefined {
-  const matches: number[] = [];
-  for (let start = text.indexOf(evidence.quote); start >= 0; start = text.indexOf(evidence.quote, start + 1)) {
-    const end = start + evidence.quote.length;
-    if (evidence.contextBefore !== undefined && !text.slice(0, start).endsWith(evidence.contextBefore)) continue;
-    if (evidence.contextAfter !== undefined && !text.slice(end).startsWith(evidence.contextAfter)) continue;
-    matches.push(start);
+/** Canonical draft ID is identity. Distinct IDs remain distinct even with identical labels. */
+export function canonicalConcepts(concepts: AnalysisDraft["concepts"]): AnalysisDraft["concepts"] {
+  const records = new Map<string, AnalysisDraft["concepts"][number]>();
+  for (const [i, concept] of concepts.entries()) {
+    const previous = records.get(concept.id);
+    const signature = (c: typeof concept) => JSON.stringify([c.name, [...new Set(c.aliases)].sort(), c.symbol]);
+    if (previous && signature(previous) !== signature(concept)) fail("Conflicting records for one canonical concept ID.", `$.concepts[${i}].id`, "invariant", { conceptId: concept.id });
+    if (!previous) records.set(concept.id, concept);
   }
-  if (!matches.length) fail("Evidence quote or adjacent context does not match the referenced source block.");
-  return matches.length === 1 ? { start: matches[0], end: matches[0] + evidence.quote.length } : undefined;
+  return [...records.values()];
 }
 
-export function normalizeAnalysisDraft(source: ImportedSource, draft: AnalysisDraft): SourceAnalysis {
+export function normalizeAnalysisDraft(source: ImportedSource, draft: AnalysisDraft, observe?: (candidate: SourceAnalysis) => void): SourceAnalysis {
+  draft = { ...draft, concepts: canonicalConcepts(draft.concepts) };
   const blocks = new Map(source.document.blocks.map(b => [b.id, b]));
   const dispositions = new Map<string, AnalysisDraft["blockDispositions"][number]["kind"]>();
-  for (const disposition of draft.blockDispositions) {
-    if (!blocks.has(disposition.blockId) || dispositions.has(disposition.blockId)) fail("Each source block must have exactly one valid disposition.");
+  for (const [i, disposition] of draft.blockDispositions.entries()) {
+    if (!blocks.has(disposition.blockId) || dispositions.has(disposition.blockId)) fail("Each source block must have exactly one valid disposition.", `$.blockDispositions[${i}].blockId`, "reference", { blockId: disposition.blockId });
     dispositions.set(disposition.blockId, disposition.kind);
   }
-  if (dispositions.size !== blocks.size) fail("AI output must account for every source block without truncating the input.");
-  uniqueIds(draft.topics);
-  uniqueIds(draft.concepts);
-  uniqueIds(draft.statements);
+  if (dispositions.size !== blocks.size) fail("AI output must account for every source block without truncating the input.", "$.blockDispositions");
+  uniqueIds(draft.topics, "$.topics");
+  uniqueIds(draft.concepts, "$.concepts");
+  uniqueIds(draft.statements, "$.statements");
+  checkDraftReferences(draft);
   if (!draft.statements.length) {
     if (draft.topics.length || draft.concepts.length || draft.lessonSections.length || [...dispositions.values()].some(k => k === "knowledge" || k === "mixed")) fail("Empty extraction must have no graph/summary or knowledge dispositions.");
     throw new AnalysisError("NO_EXTRACTABLE_KNOWLEDGE", 422, "Source contains no explicit extractable knowledge. Questions are not solved by this endpoint.");
   }
   const topicIds = new Map(draft.topics.map(t => [t.id, randomUUID()]));
   const conceptIds = new Map<string, string>();
-  const conceptKeys = new Map<string, string>();
-  const concepts: Concept[] = [];
-  for (const concept of draft.concepts) {
-    const topicId = reference(topicIds, concept.topicId);
-    const aliases = [...new Set(concept.aliases)];
-    // Exact structured duplicates only: no fuzzy names, lowercasing, or cross-topic merging.
-    const key = JSON.stringify([topicId, concept.name, [...aliases].sort(), concept.symbol]);
-    let id = conceptKeys.get(key);
-    if (!id) {
-      id = randomUUID(); conceptKeys.set(key, id);
-      concepts.push({ id, topicId, name: concept.name, aliases, ...(concept.symbol !== undefined ? { symbol: concept.symbol } : {}) });
-    }
-    conceptIds.set(concept.id, id);
-  }
-  const conceptMap = new Map(concepts.map(c => [c.id, c]));
+  const concepts: Concept[] = draft.concepts.map(concept => {
+    const id = randomUUID(); conceptIds.set(concept.id, id);
+    return { id, documentId: source.document.id, name: concept.name, aliases: [...new Set(concept.aliases)], ...(concept.symbol ? { symbol: concept.symbol } : {}) };
+  });
+  const quality = [...draft.statements.flatMap((statement, i) => inspectStatement(statement, draft.concepts, `$.statements[${i}]`)),
+    ...inspectRepeatedAssertions(draft.statements, draft.concepts, "$.statements")];
+  const semanticErrors = quality.filter(i => i.severity === "error").map(({ severity: _severity, ...issue }) => issue);
+  if (semanticErrors.length) throw new DraftError("Extraction contains inconsistent assertion/representation data; review the reported statements.", semanticErrors);
   const evidence: Evidence[] = [];
   const evidenceKeys = new Map<string, string>();
   const analysisWarnings: AnalysisWarning[] = [];
@@ -79,17 +79,21 @@ export function normalizeAnalysisDraft(source: ImportedSource, draft: AnalysisDr
   const statementIds = new Map<string, string>();
   const statementKeys = new Map<string, string>();
   const statements: Statement[] = [];
-  for (const statement of draft.statements) {
+  for (const [statementIndex, statement] of draft.statements.entries()) {
     const topicId = reference(topicIds, statement.topicId);
-    const subjectConceptId = reference(conceptIds, statement.subjectConceptId);
-    const objectConceptId = reference(conceptIds, statement.objectConceptId);
-    if (conceptMap.get(subjectConceptId)!.topicId !== topicId || conceptMap.get(objectConceptId)!.topicId !== topicId) fail("Statements cannot cross topic boundaries.");
+    const r = statement.representation;
+    const representation = r.kind === "binary"
+      ? { kind: "binary" as const, subjectConceptId: reference(conceptIds, r.subjectConceptId), relation: r.relation, objectConceptId: reference(conceptIds, r.objectConceptId) }
+      : { kind: "complex" as const, participants: r.participants.map(p => ({ conceptId: reference(conceptIds, p.conceptId), role: p.role })) };
     const evidenceIds: string[] = [];
-    for (const item of statement.evidence) {
-      const block = blocks.get(item.blockId) ?? fail("Evidence references an unknown source block.");
+    for (const [evidenceIndex, item] of statement.evidence.entries()) {
+      const path = `$.statements[${statementIndex}].evidence[${evidenceIndex}]`;
+      const block = blocks.get(item.blockId) ?? fail("Evidence references an unknown source block.", `${path}.blockId`, "reference", { blockId: item.blockId, statementId: statement.id });
       const disposition = dispositions.get(block.id);
-      if (disposition === "questions" || disposition === "other" || isExplicitQuestionText(block.text) || isExplicitQuestionText(item.quote)) fail("Questions or unsupported source blocks cannot establish a knowledge assertion.");
-      const charRange = evidenceSpan(block.text, item);
+      if (disposition === "questions" || disposition === "other" || isExplicitQuestionText(block.text) || isExplicitQuestionText(item.quote)) fail("Questions or unsupported source blocks cannot establish a knowledge assertion.", path, "evidence", { blockId: item.blockId, statementId: statement.id });
+      const located = locateQuote(block.text, item);
+      if (!located.occurrences) fail("Evidence quote is absent from its referenced block.", `${path}.quote`, "evidence", { blockId: item.blockId, statementId: statement.id });
+      const charRange = located.range;
       supportedBlocks.add(block.id);
       if (!charRange) warning("AMBIGUOUS_EVIDENCE", block.id, "Repeated quote has no unique source position; evidence remains unverified.");
       const key = JSON.stringify([block.id, item.quote, charRange]);
@@ -98,12 +102,13 @@ export function normalizeAnalysisDraft(source: ImportedSource, draft: AnalysisDr
         id = randomUUID(); evidenceKeys.set(key, id);
         evidence.push({ id, documentId: source.document.id, blockId: block.id, quote: item.quote,
           kind: "source_quote", verification: charRange ? "verified" : "unverified",
+          ...(located.contextBefore ? { contextBefore: located.contextBefore } : {}), ...(located.contextAfter ? { contextAfter: located.contextAfter } : {}),
           ...(charRange || block.location?.page !== undefined ? { location: { ...(charRange ? { charRange } : {}), ...(block.location?.page !== undefined ? { page: block.location.page } : {}) } } : {}),
         });
       }
       if (!evidenceIds.includes(id)) evidenceIds.push(id);
     }
-    const content = { topicId, subjectConceptId, relation: statement.relation, objectConceptId,
+    const content = { topicId, representation,
       assertion: statement.assertion, negated: statement.negated, conditions: statement.conditions,
       ...(statement.formula !== undefined ? { formula: statement.formula } : {}), role: statement.role, evidenceIds };
     const key = JSON.stringify({ ...content, evidenceIds: [...evidenceIds].sort() });
@@ -112,13 +117,13 @@ export function normalizeAnalysisDraft(source: ImportedSource, draft: AnalysisDr
     statementIds.set(statement.id, id);
   }
   for (const [blockId, kind] of dispositions) {
-    if ((kind === "knowledge" || kind === "mixed") && !supportedBlocks.has(blockId)) fail("A knowledge block was classified but has no extracted supporting statement.");
+    if ((kind === "knowledge" || kind === "mixed") && !supportedBlocks.has(blockId)) fail("A knowledge block was classified but has no extracted supporting statement.", "$.blockDispositions", "invariant", { blockId });
     if (kind === "questions" || kind === "mixed") warning("QUESTIONS_PRESENT", blockId, "Source contains questions or exercises; no inferred answers were added.");
   }
   const sectionTopics = new Set<string>();
-  const lessonSections = draft.lessonSections.map(section => {
+  const lessonSections = draft.lessonSections.map((section, sectionIndex) => {
     const topicId = reference(topicIds, section.topicId);
-    if (sectionTopics.has(topicId)) fail("Each topic requires exactly one lesson section.");
+    if (sectionTopics.has(topicId)) fail("Each topic requires exactly one lesson section.", `$.lessonSections[${sectionIndex}].topicId`, "invariant", { topicId: section.topicId });
     sectionTopics.add(topicId);
     return { id: randomUUID(), topicId, summary: section.summary,
       statementIds: [...new Set(section.statementIds.map(id => reference(statementIds, id)))],
@@ -126,14 +131,32 @@ export function normalizeAnalysisDraft(source: ImportedSource, draft: AnalysisDr
     };
   });
   for (const topicId of topicIds.values()) {
-    if (!statements.some(s => s.topicId === topicId)) fail("Each extracted topic requires a supported statement.");
+    if (!statements.some(s => s.topicId === topicId)) fail("Each extracted topic requires a supported statement.", "$.topics", "invariant", { topicId });
   }
+  for (const finding of quality.filter(i => i.severity === "review")) {
+    analysisWarnings.push({ code: "EXTRACTION_REVIEW", statementId: reference(statementIds, finding.ids.statementId), message: finding.message });
+  }
+  const usedConcepts = new Set(statements.flatMap(s => referencedConceptIds(s.representation)));
+  for (const c of concepts) if (!usedConcepts.has(c.id)) analysisWarnings.push({ code: "UNUSED_CONCEPT", conceptId: c.id, message: "An extracted concept has no statement. Structural block coverage does not prove complete knowledge coverage." });
+  if (draft.topics.length === ANALYSIS_LIMITS.topics || draft.concepts.length === ANALYSIS_LIMITS.concepts || draft.statements.length === ANALYSIS_LIMITS.statements) analysisWarnings.push({ code: "COVERAGE_LIMIT", message: "Extraction reached a configured collection limit. Source was preserved; knowledge coverage may be incomplete." });
+  const blockOrder = new Map(source.document.blocks.map((b, i) => [b.id, i]));
+  const position = (topicId: string): [number, number] => {
+    const spans = statements.filter(s => s.topicId === topicId).flatMap(s => s.evidenceIds.map(id => evidence.find(e => e.id === id)!)).map(e => [blockOrder.get(e.blockId)!, e.location?.charRange?.start ?? Number.MAX_SAFE_INTEGER] as [number, number]);
+    return spans.sort((a, b) => a[0] - b[0] || a[1] - b[1])[0] ?? [Infinity, Infinity];
+  };
+  const topics = draft.topics.map((t, index) => ({ id: reference(topicIds, t.id), title: t.title, index })).sort((a, b) => {
+    const x = position(a.id), y = position(b.id);
+    return (x[0] - y[0] || x[1] - y[1] || a.index - b.index);
+  }).map(({ index: _index, ...topic }) => topic);
+  lessonSections.sort((a, b) => topics.findIndex(t => t.id === a.topicId) - topics.findIndex(t => t.id === b.topicId));
   const result: SourceAnalysis = {
-    schemaVersion: "1.0", id: randomUUID(), provenance: "analysis", document: structuredClone(source.document),
+    schemaVersion: "2.0", id: randomUUID(), provenance: "analysis", document: structuredClone(source.document),
     graph: { id: randomUUID(), documentId: source.document.id, kind: "source",
-      topics: draft.topics.map(t => ({ id: reference(topicIds, t.id), title: t.title })), concepts, statements, evidence },
+      topics, concepts, statements, evidence },
     lessonSections, sourceWarnings: structuredClone(source.warnings), analysisWarnings,
   };
-  if (!validateSourceAnalysis(result).valid) fail("Normalized analysis failed the domain contract (references, evidence or lesson links).");
+  observe?.(result);
+  const validation = validateSourceAnalysis(result);
+  if (!validation.valid) throw new DraftError("Normalized analysis failed the domain contract (references, evidence or lesson links).", validation.issues);
   return result;
 }

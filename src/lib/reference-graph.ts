@@ -1,12 +1,15 @@
 import { MarkerType, Position, type Edge, type Node } from "@xyflow/react";
 import type { KnowledgeGraph } from "@/backend/contracts/domain";
+import { referencedConceptIds, statementLabel } from "../backend/contracts/graph";
 
 export type ReferenceEdge = Edge<{ offset: number; selfLoop: boolean; statementId: string }>;
 
-/** Deterministic frontend grid; every topic concept/statement is retained, including parallel edges. */
+/** Deterministic frontend grid; selected endpoints/participants are visible; only binary statements become edges. */
 export function toReferenceFlow(graph: KnowledgeGraph, topicId: string, options: { columns?: number } = {}): { nodes: Node[]; edges: ReferenceEdge[] } {
-  const concepts = graph.concepts.filter(c => c.topicId === topicId);
-  const statements = graph.statements.filter(s => s.topicId === topicId);
+  const selected = graph.statements.filter(s => s.topicId === topicId);
+  const visible = new Set(selected.flatMap(s => referencedConceptIds(s.representation)));
+  const concepts = graph.concepts.filter(c => visible.has(c.id));
+  const statements = selected.flatMap(s => s.representation.kind === "binary" ? [{ ...s, ...s.representation }] : []);
   const nodeId = (id: string) => `${graph.id}:${id}`;
   const columns = options.columns ?? Math.min(3, Math.max(1, Math.ceil(Math.sqrt(concepts.length))));
   const nodes: Node[] = concepts.map((concept, index) => ({
@@ -25,7 +28,7 @@ export function toReferenceFlow(graph: KnowledgeGraph, topicId: string, options:
     const direction = statement.subjectConceptId <= statement.objectConceptId ? 1 : -1;
     return {
       id: statement.id, source: nodeId(statement.subjectConceptId), target: nodeId(statement.objectConceptId),
-      type: "reference", label: `${statement.negated ? "not " : ""}${statement.relation}`,
+      type: "reference", label: statementLabel(statement),
       data: { offset: statement.subjectConceptId === statement.objectConceptId ? group.indexOf(statement) * 45 : (group.indexOf(statement) - (group.length - 1) / 2) * 65 * direction,
         selfLoop: statement.subjectConceptId === statement.objectConceptId, statementId: statement.id },
       markerEnd: { type: MarkerType.ArrowClosed, color: "#74817d" },

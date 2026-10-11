@@ -1,3 +1,5 @@
+> Historical v1 specification. Current implementation is **schemaVersion 2.0**; see [v2 contract and migration](backend-contract-v2.md). V1 payloads are rejected rather than silently reinterpreted.
+
 # ExplainBack - Backend/domain contract v1 (Block 1)
 
 ## Scope and file organization

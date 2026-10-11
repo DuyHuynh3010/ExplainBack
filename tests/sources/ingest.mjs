@@ -24,7 +24,7 @@ const valid = source => {
 const failure = (code, status) => error => error.code === code && error.status === status;
 const textRequest = (text, title) => new Request("http://localhost/api/sources", {
   method: "POST", headers: { "content-type": "application/json" },
-  body: JSON.stringify({ schemaVersion: "1.0", source: { kind: "text", text, ...(title !== undefined ? { title } : {}) } }),
+  body: JSON.stringify({ schemaVersion: "2.0", source: { kind: "text", text, ...(title !== undefined ? { title } : {}) } }),
 });
 const fileRequest = (bytes, name = "lesson.bin", mime = "application/octet-stream", title) => {
   const form = new FormData();
@@ -37,7 +37,7 @@ const envelope = async (request, status) => {
   assert.equal(response.status, status);
   assert.equal(response.headers.get("cache-control"), "no-store");
   const body = await response.json();
-  assert.equal(body.schemaVersion, "1.0");
+  assert.equal(body.schemaVersion, "2.0");
   assert.equal(body.ok, status === 200);
   if (body.ok) valid(body.data); else {
     assert.equal(body.error.retryable, false);
@@ -196,11 +196,11 @@ test("JSON and multipart route contracts work without any API key", async () => 
 });
 
 const invalidJson = [
-  null, {}, { schemaVersion: "2.0", source: { kind: "text", text: "Text" } },
-  { schemaVersion: "1.0", source: { kind: "text", text: "" } },
-  { schemaVersion: "1.0", source: { kind: "text", text: 3 } },
-  { schemaVersion: "1.0", source: { kind: "text", text: "Text" }, file: "PDF" },
-  { schemaVersion: "1.0", source: { kind: "pdf" } },
+  null, {}, { schemaVersion: "1.0", source: { kind: "text", text: "Text" } },
+  { schemaVersion: "2.0", source: { kind: "text", text: "" } },
+  { schemaVersion: "2.0", source: { kind: "text", text: 3 } },
+  { schemaVersion: "2.0", source: { kind: "text", text: "Text" }, file: "PDF" },
+  { schemaVersion: "2.0", source: { kind: "pdf" } },
 ];
 for (const [index, payload] of invalidJson.entries()) test(`rejects invalid JSON payload ${index + 1}`, async () => {
   const response = await envelope(new Request("http://localhost/api/sources", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(payload) }), 400);

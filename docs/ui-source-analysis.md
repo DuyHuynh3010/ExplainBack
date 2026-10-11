@@ -1,9 +1,12 @@
 # ExplainBack - Source-analysis UI integration
 
+Current graph/API contract: [v2 migration and architecture](backend-contract-v2.md).
+
+
 ## Delivered flow
 
 The existing SourceInput and importLearningSource client still call POST /api/sources.
-The new analysis client sends `{ schemaVersion: "1.0", importedSource }` to POST
+The new analysis client sends `{ schemaVersion: "2.0", importedSource }` to POST
 /api/analysis. Both use same-origin requests. Gemini configuration and SDK imports
 stay in the backend. Client runtime validators reject malformed/unbound responses.
 No backend contracts, dependencies or lockfile changed in this integration.
@@ -67,7 +70,10 @@ Cancellation prevents frontend updates; it does not guarantee cancellation of
 provider work or charges already incurred.
 
 The adapter in src/lib/reference-graph.ts filters a topic, namespaces node IDs by
-graph, and gives every statement its own edge with direction and a relation label.
+graph, and draws each binary statement as an edge with direction and a relation label.
+Visible nodes are the union of selected endpoints and complex participants, not topic-owned
+concepts. Complex statements appear in cards with participants, evidence and evaluation
+status; no fake binary edges are created. Topic changes reset selection to that topic.
 Negation is shown in labels/details; conditions/formulas remain in the detail.
 Parallel, reverse and self relations have distinct curves. Grid positions are
 frontend-only; narrow graph containers use one column. Zoom/fit controls and the
@@ -82,6 +88,7 @@ has no invented highlight. Summary and key-point links resolve source statement 
 ## Verification
 
 ```powershell
+npx tsc -p tests/analysis/tsconfig.json
 node --test --test-isolation=none tests/contracts/validate.mjs
 node node_modules/typescript/bin/tsc -p tests/sources/tsconfig.json
 node --test --test-isolation=none tests/sources/ingest.mjs

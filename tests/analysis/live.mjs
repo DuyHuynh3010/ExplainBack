@@ -10,7 +10,7 @@ if (process.env.RUN_GEMINI_SMOKE !== "1") {
   const { analyzeImportedSource } = require("../../test-results/analysis-build/backend/analysis/pipeline.js");
   const { createGeminiProvider } = require("../../test-results/analysis-build/backend/analysis/gemini.js");
   try {
-    const analysis = await analyzeImportedSource({ schemaVersion: "1.0", importedSource: importText("Glucose stores chemical energy. Chlorophyll absorbs light energy."), outputLanguage: "en" }, createGeminiProvider());
+    const analysis = await analyzeImportedSource({ schemaVersion: "2.0", importedSource: importText("Glucose stores chemical energy. Chlorophyll absorbs light energy."), outputLanguage: "en" }, createGeminiProvider());
     console.log(JSON.stringify({ passed: true, topics: analysis.graph.topics.length, statements: analysis.graph.statements.length, verifiedEvidence: analysis.graph.evidence.filter(e => e.verification === "verified").length }));
   } catch (error) {
     // Do not print SDK errors, input text, credentials or prompts.

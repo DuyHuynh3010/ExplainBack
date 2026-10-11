@@ -18,16 +18,16 @@ export function endpointDraft(source) {
     { id: "process", name: "Chemical energy", aliases: ["Stored energy", "Energy"] },
     { id: "pigment", name: "Chlorophyll", aliases: [] },
     { id: "light", name: "Light energy", aliases: [] },
-    { id: "energy-copy", name: "Chemical energy", aliases: ["Energy", "Stored energy"] },
-  ].map(c => ({ ...c, topicId }));
+    { id: "process", name: "Chemical energy", aliases: ["Energy", "Stored energy"] },
+  ];
   const rows = [
     ["energy", "produces", "product", "Photosynthesis produces glucose.", "Photosynthesis produces glucose and oxygen."],
     ["energy", "produces", "oxygen", "Photosynthesis produces oxygen.", "Photosynthesis produces glucose and oxygen."],
-    ["product", "stores", "energy-copy", "Glucose stores chemical energy.", "Glucose stores chemical energy."],
+    ["product", "stores", "process", "Glucose stores chemical energy.", "Glucose stores chemical energy."],
     ["pigment", "absorbs", "light", "Chlorophyll absorbs light energy.", "Chlorophyll absorbs light energy."],
   ];
   const statements = rows.map(([subjectConceptId, relation, objectConceptId, assertion, quote], i) => ({
-    id: `s${i}`, topicId, subjectConceptId, relation, objectConceptId, assertion,
+    id: `s${i}`, topicId, representation: { kind: "binary", subjectConceptId, relation, objectConceptId }, assertion,
     negated: false, conditions: [], role: "fact", evidence: [{ blockId: source.document.blocks[0].id, quote }],
   }));
   return {

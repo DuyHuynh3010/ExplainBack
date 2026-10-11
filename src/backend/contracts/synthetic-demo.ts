@@ -20,12 +20,13 @@ const learnerText = [
 ].join(" ");
 
 const concept = (id: string, name: string, aliases: string[] = [], symbol?: string): Concept => ({
-  id, topicId: "photosynthesis", name, aliases, ...(symbol ? { symbol } : {}),
+  id, documentId: "source-document", name, aliases, ...(symbol ? { symbol } : {}),
 });
 const concepts: Concept[] = [
   concept("chlorophyll", "Chlorophyll"), concept("light", "Light energy", ["sunlight"]),
   concept("process", "Photosynthesis"), concept("glucose", "Glucose", [], "C6H12O6"),
   concept("oxygen", "Oxygen", [], "O2"), concept("energy", "Chemical energy"),
+  concept("plants", "Plants"), concept("co2", "Carbon dioxide"), concept("water", "Water"),
 ];
 
 function evidence(id: string, documentId: string, text: string, quote: string, kind: Evidence["kind"]): Evidence {
@@ -42,7 +43,7 @@ function statement(
   assertion: string, conditions: string[] = [], negated = false,
 ): Statement {
   return {
-    id, topicId: "photosynthesis", subjectConceptId, relation, objectConceptId, assertion,
+    id, topicId: "photosynthesis", representation: { kind: "binary", subjectConceptId, relation, objectConceptId }, assertion,
     negated, conditions, role: "mechanism", evidenceIds: [`e-${id}`],
   };
 }
@@ -65,8 +66,17 @@ const learnerStatements: Statement[] = [
   statement("extra", "cells", "contain", "chloroplasts", "Plant cells contain chloroplasts."),
 ];
 
+// Preserve coupled reactants and products rather than fabricating a binary projection.
+for (const [statements, includeWater] of [[sourceStatements, true], [learnerStatements, false]] as const) {
+  statements.find(s => s.id === "produces")!.representation = { kind: "complex", participants: [
+    { conceptId: "plants", role: "agent" }, { conceptId: "co2", role: "reactant" },
+    ...(includeWater ? [{ conceptId: "water", role: "reactant" }] : []),
+    { conceptId: "glucose", role: "product" }, { conceptId: "process", role: "process" },
+  ] };
+}
+
 const sourceAnalysis: SourceAnalysis = {
-  schemaVersion: "1.0", id: "demo-analysis", provenance: "synthetic_demo",
+  schemaVersion: "2.0", id: "demo-analysis", provenance: "synthetic_demo",
   document: {
     id: "source-document", kind: "text", title: "Photosynthesis: synthetic contract demo",
     blocks: [{ id: "body", documentId: "source-document", text: sourceText }],
@@ -88,11 +98,11 @@ const sourceRef = (statementId: string): StatementRef => ({ graphId: "source-gra
 const learnerRef = (statementId: string): StatementRef => ({ graphId: "learner-graph", statementId });
 
 export const syntheticDemo: ExplainBackDemo = {
-  description: "Synthetic demo data, authored only to illustrate contract v1; not real document analysis or AI evaluation.",
+  description: "Synthetic demo data, authored only to illustrate contract v2; not real document analysis or AI evaluation.",
   sourceAnalysis,
   learnerText,
   evaluation: {
-    schemaVersion: "1.0", id: "demo-evaluation", provenance: "synthetic_demo",
+    schemaVersion: "2.0", id: "demo-evaluation", provenance: "synthetic_demo",
     sourceAnalysisId: sourceAnalysis.id, topicIds: ["photosynthesis"],
     learnerDocument: {
       id: "learner-document", kind: "text",
@@ -100,40 +110,40 @@ export const syntheticDemo: ExplainBackDemo = {
     },
     learnerGraph: {
       id: "learner-graph", documentId: "learner-document", kind: "learner",
-      topics: [{ id: "photosynthesis", title: "Photosynthesis", sourceTopicId: "photosynthesis" }],
+      topics: [{ id: "photosynthesis", title: "Photosynthesis" }],
       // Local IDs may repeat across graphs; comparison references always include graphId.
-      concepts: concepts.filter(c => c.id !== "energy").map(c => ({ ...c, aliases: [...c.aliases] })).concat([
+      concepts: concepts.filter(c => c.id !== "energy").concat([
         concept("cells", "Plant cells"), concept("chloroplasts", "Chloroplasts"),
-      ]),
+      ]).map(c => ({ ...c, documentId: "learner-document", aliases: [...c.aliases] })),
       statements: learnerStatements,
       evidence: learnerStatements.map(s => evidence(`e-${s.id}`, "learner-document", learnerText, s.assertion, "learner_quote")),
     },
     comparisons: [
       {
-        id: "compare-absorbs", topicId: "photosynthesis", sourceStatements: [sourceRef("absorbs")],
+        id: "compare-absorbs", referenceRelationshipId: "absorbs", topicId: "photosynthesis", sourceStatements: [sourceRef("absorbs")],
         learnerStatements: [learnerRef("absorbs")], status: "correct",
         explanation: "The learner states the same light absorption relationship as the source.", suggestions: [],
       },
       {
-        id: "compare-produces", topicId: "photosynthesis", sourceStatements: [sourceRef("produces")],
+        id: "compare-produces", referenceRelationshipId: "produces", topicId: "photosynthesis", sourceStatements: [sourceRef("produces")],
         learnerStatements: [learnerRef("produces")], status: "partial",
         explanation: "Glucose production and carbon dioxide are included, but water is omitted.",
         suggestions: ["Include water among the inputs needed to produce glucose."],
       },
       {
-        id: "compare-releases", topicId: "photosynthesis", sourceStatements: [sourceRef("releases")],
+        id: "compare-releases", referenceRelationshipId: "releases", topicId: "photosynthesis", sourceStatements: [sourceRef("releases")],
         learnerStatements: [learnerRef("releases")], status: "contradicted",
         explanation: "The learner explicitly negates the source's oxygen release assertion.",
         suggestions: ["State that photosynthesis releases oxygen."],
       },
       {
-        id: "compare-stores", topicId: "photosynthesis", sourceStatements: [sourceRef("stores")],
+        id: "compare-stores", referenceRelationshipId: "stores", topicId: "photosynthesis", sourceStatements: [sourceRef("stores")],
         learnerStatements: [], status: "missing",
         explanation: "There is no learner assertion about glucose storing chemical energy.",
         suggestions: ["Explain the energy storage role of glucose."],
       },
       {
-        id: "compare-powers", topicId: "photosynthesis", sourceStatements: [sourceRef("powers")],
+        id: "compare-powers", referenceRelationshipId: "powers", topicId: "photosynthesis", sourceStatements: [sourceRef("powers")],
         learnerStatements: [learnerRef("powers")], status: "uncertain",
         explanation: "'May affect ... somehow' is too vague to determine the learner's understanding of the energy relationship.",
         suggestions: ["Clarify how light energy powers photosynthesis."],
@@ -148,10 +158,10 @@ export const syntheticDemo: ExplainBackDemo = {
 
 /** Concrete stateless request examples for frontend/backend development. */
 export const demoAnalyzeRequest: AnalyzeTextRequest = {
-  schemaVersion: "1.0", source: { kind: "text", title: sourceAnalysis.document.title, text: sourceText },
+  schemaVersion: "2.0", source: { kind: "text", title: sourceAnalysis.document.title, text: sourceText },
 };
 export const demoEvaluateRequest: EvaluateTextRequest = {
-  schemaVersion: "1.0", sourceAnalysis, topicIds: ["photosynthesis"], learner: { text: learnerText },
+  schemaVersion: "2.0", sourceAnalysis, topicIds: ["photosynthesis"], learner: { text: learnerText },
 };
-export const demoAnalyzeResponse: AnalyzeSourceResponse = { ok: true, schemaVersion: "1.0", data: sourceAnalysis };
-export const demoEvaluateResponse: EvaluateTextResponse = { ok: true, schemaVersion: "1.0", data: syntheticDemo.evaluation };
+export const demoAnalyzeResponse: AnalyzeSourceResponse = { ok: true, schemaVersion: "2.0", data: sourceAnalysis };
+export const demoEvaluateResponse: EvaluateTextResponse = { ok: true, schemaVersion: "2.0", data: syntheticDemo.evaluation };

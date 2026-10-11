@@ -1,12 +1,10 @@
 // Explicit node:test entrypoint; does not match Playwright's *.spec/*.test discovery.
 import test from "node:test";
 import assert from "node:assert/strict";
-import { syntheticDemo, demoAnalyzeRequest, demoEvaluateRequest, demoAnalyzeResponse, demoEvaluateResponse } from "../../src/backend/contracts/synthetic-demo.ts";
-import {
-  validateDemo, validateSourceAnalysis, validateEvaluationResult,
-  validateAnalyzeSourceRequest, validateEvaluateTextRequest,
-  validateAnalyzeSourceResponse, validateEvaluateTextResponse,
-} from "../../src/backend/contracts/validate.ts";
+import { createRequire } from "node:module";
+const require = createRequire(import.meta.url);
+const { syntheticDemo, demoAnalyzeRequest, demoEvaluateRequest, demoAnalyzeResponse, demoEvaluateResponse } = require("../../test-results/analysis-build/backend/contracts/synthetic-demo.js");
+const { validateDemo, validateSourceAnalysis, validateEvaluationResult, validateAnalyzeSourceRequest, validateEvaluateTextRequest, validateAnalyzeSourceResponse, validateEvaluateTextResponse } = require("../../test-results/analysis-build/backend/contracts/validate.js");
 
 const fresh = () => structuredClone(syntheticDemo);
 const accepted = result => assert.equal(result.valid, true, JSON.stringify(result.issues));
@@ -29,12 +27,12 @@ test("synthetic round trip, all five statuses, additional idea and exact evidenc
 
 test("text analyze, PDF multipart metadata, stateless evaluation request", () => {
   accepted(validateAnalyzeSourceRequest(demoAnalyzeRequest));
-  accepted(validateAnalyzeSourceRequest({ schemaVersion: "1.0", source: { kind: "pdf", title: "Lecture" } }));
+  accepted(validateAnalyzeSourceRequest({ schemaVersion: "2.0", source: { kind: "pdf", title: "Lecture" } }));
   accepted(validateEvaluateTextRequest(demoEvaluateRequest));
-  rejected(validateEvaluateTextRequest({ schemaVersion: "1.0", sourceAnalysisId: "demo-analysis", topicIds: ["photosynthesis"], learner: { text: "Explanation" } }), "shape", "sourceAnalysis");
-  rejected(validateAnalyzeSourceRequest({ schemaVersion: "1.0", source: { kind: "text", text: "  " } }), "shape", "text");
-  rejected(validateAnalyzeSourceRequest({ schemaVersion: "1.0", source: { kind: "audio", text: "Input" } }), "shape", "kind");
-  rejected(validateAnalyzeSourceRequest({ schemaVersion: "2.0", source: { kind: "text", text: "Input" } }), "shape", "schemaVersion");
+  rejected(validateEvaluateTextRequest({ schemaVersion: "2.0", sourceAnalysisId: "demo-analysis", topicIds: ["photosynthesis"], learner: { text: "Explanation" } }), "shape", "sourceAnalysis");
+  rejected(validateAnalyzeSourceRequest({ schemaVersion: "2.0", source: { kind: "text", text: "  " } }), "shape", "text");
+  rejected(validateAnalyzeSourceRequest({ schemaVersion: "2.0", source: { kind: "audio", text: "Input" } }), "shape", "kind");
+  rejected(validateAnalyzeSourceRequest({ schemaVersion: "1.0", source: { kind: "text", text: "Input" } }), "shape", "schemaVersion");
 });
 
 test("IDs may repeat across graphs; references disambiguate the graph", () => {
@@ -54,11 +52,11 @@ test("successful API envelopes bind outputs to the input source and learner text
 });
 
 test("API error envelope is explicit and rejects extra success fields", () => {
-  const error = { ok: false, schemaVersion: "1.0", error: { code: "INVALID_REQUEST", message: "Invalid payload", retryable: false, details: [{ path: "$.learner.text", message: "Required" }] } };
+  const error = { ok: false, schemaVersion: "2.0", error: { code: "INVALID_REQUEST", message: "Invalid payload", retryable: false, details: [{ path: "$.learner.text", message: "Required" }] } };
   accepted(validateAnalyzeSourceResponse(demoAnalyzeRequest, error));
   accepted(validateEvaluateTextResponse(demoEvaluateRequest, error));
   rejected(validateEvaluateTextResponse(demoEvaluateRequest, { ...error, data: syntheticDemo.evaluation }), "shape", "data");
-  rejected(validateEvaluateTextResponse(demoEvaluateRequest, { ok: true, schemaVersion: "1.0" }), "shape", "data");
+  rejected(validateEvaluateTextResponse(demoEvaluateRequest, { ok: true, schemaVersion: "2.0" }), "shape", "data");
   rejected(validateEvaluateTextResponse(demoEvaluateRequest, { ...error, error: { ...error.error, code: "UNKNOWN" } }), "shape", "code");
 });
 
@@ -90,17 +88,13 @@ test("parallel edges between the same concept pair are allowed", () => {
   extra.id = "absorbs-parallel";
   extra.role = "fact";
   demo.sourceAnalysis.graph.statements.push(extra);
-  demo.evaluation.comparisons[0].sourceStatements.push({ graphId: "source-graph", statementId: extra.id });
+  demo.evaluation.comparisons.push({ ...structuredClone(demo.evaluation.comparisons[0]), id: "compare-parallel", referenceRelationshipId: extra.id, sourceStatements: [{ graphId: "source-graph", statementId: extra.id }] });
   accepted(validateDemo(demo));
 });
 
-test("many-to-many matching groups each statement once", () => {
+test("one learner claim may match several references, several claims may match one", () => {
   const demo = fresh();
-  const first = demo.evaluation.comparisons[0];
-  const second = demo.evaluation.comparisons.splice(1, 1)[0];
-  first.sourceStatements.push(...second.sourceStatements);
-  first.learnerStatements.push(...second.learnerStatements);
-  first.status = "partial";
+  demo.evaluation.comparisons[1].learnerStatements.push(...demo.evaluation.comparisons[0].learnerStatements);
   accepted(validateDemo(demo));
 });
 
@@ -109,10 +103,10 @@ function withSecondSourceTopic() {
   const source = demo.sourceAnalysis;
   source.graph.topics.push({ id: "other", title: "A separate topic" });
   source.graph.concepts.push(
-    { id: "other-subject", topicId: "other", name: "Chlorophyll", aliases: [] },
-    { id: "other-object", topicId: "other", name: "Light energy", aliases: [] },
+    { id: "other-subject", documentId: "source-document", name: "Chlorophyll", aliases: [] },
+    { id: "other-object", documentId: "source-document", name: "Light energy", aliases: [] },
   );
-  source.graph.statements.push({ ...structuredClone(source.graph.statements[0]), id: "other-absorbs", topicId: "other", subjectConceptId: "other-subject", objectConceptId: "other-object" });
+  source.graph.statements.push({ ...structuredClone(source.graph.statements[0]), id: "other-absorbs", topicId: "other", representation: { ...source.graph.statements[0].representation, subjectConceptId: "other-subject", objectConceptId: "other-object" } });
   source.lessonSections.push({ id: "other-section", topicId: "other", summary: "Chlorophyll absorbs light energy.", statementIds: ["other-absorbs"], keyPoints: [{ id: "point", text: "Chlorophyll absorbs light energy.", statementIds: ["other-absorbs"] }] });
   return demo;
 }
@@ -121,9 +115,9 @@ test("unselected source topics are not marked missing", () => {
   const demo = withSecondSourceTopic();
   accepted(validateDemo(demo));
   const request = { ...structuredClone(demoEvaluateRequest), sourceAnalysis: demo.sourceAnalysis };
-  accepted(validateEvaluateTextResponse(request, { ok: true, schemaVersion: "1.0", data: demo.evaluation }));
+  accepted(validateEvaluateTextResponse(request, { ok: true, schemaVersion: "2.0", data: demo.evaluation }));
   request.topicIds = ["other"];
-  rejected(validateEvaluateTextResponse(request, { ok: true, schemaVersion: "1.0", data: demo.evaluation }), "invariant", "topicIds");
+  rejected(validateEvaluateTextResponse(request, { ok: true, schemaVersion: "2.0", data: demo.evaluation }), "invariant", "topicIds");
   demo.evaluation.comparisons[0].sourceStatements = [{ graphId: "source-graph", statementId: "other-absorbs" }];
   rejected(validateDemo(demo), "invariant", "sourceStatements");
 });
@@ -131,7 +125,6 @@ test("unselected source topics are not marked missing", () => {
 test("learner topics can use local IDs different from source topics", () => {
   const demo = fresh();
   demo.evaluation.learnerGraph.topics[0].id = "learner-local-topic";
-  demo.evaluation.learnerGraph.concepts.forEach(c => { c.topicId = "learner-local-topic"; });
   demo.evaluation.learnerGraph.statements.forEach(s => { s.topicId = "learner-local-topic"; });
   accepted(validateDemo(demo));
 });
@@ -144,12 +137,12 @@ test("PDF page locations are allowed when real metadata agrees", () => {
   accepted(validateDemo(demo));
 });
 
-test("PDF page metadata can be absent; unverified quotes are not asserted to occur", () => {
+test("PDF page metadata can be absent; unverified quotes retain source text without a unique occurrence", () => {
   const demo = fresh();
   demo.sourceAnalysis.document.kind = "pdf";
   const e = demo.sourceAnalysis.graph.evidence[0];
   e.verification = "unverified";
-  e.quote = "Unverified extraction candidate";
+  // Ambiguous/unverified quotes still have to occur in the source.
   delete e.location;
   demo.evaluation.comparisons[0].status = "uncertain";
   accepted(validateDemo(demo));
@@ -169,11 +162,11 @@ const invalidCases = [
   ["duplicate block ID", d => d.sourceAnalysis.document.blocks.push(structuredClone(d.sourceAnalysis.document.blocks[0])), "invariant", "blocks"],
   ["duplicate statement ID", d => d.sourceAnalysis.graph.statements.push(structuredClone(d.sourceAnalysis.graph.statements[0])), "invariant", "statements"],
   ["duplicate evidence ID", d => d.sourceAnalysis.graph.evidence.push(structuredClone(d.sourceAnalysis.graph.evidence[0])), "invariant", "evidence"],
-  ["unknown topic", d => { d.sourceAnalysis.graph.concepts[0].topicId = "unknown"; }, "reference", "topicId"],
-  ["unknown subject", d => { d.sourceAnalysis.graph.statements[0].subjectConceptId = "unknown"; }, "reference", "subjectConceptId"],
-  ["unknown object", d => { d.sourceAnalysis.graph.statements[0].objectConceptId = "unknown"; }, "reference", "objectConceptId"],
+  ["unknown topic", d => { d.sourceAnalysis.graph.statements[0].topicId = "unknown"; }, "reference", "topicId"],
+  ["unknown subject", d => { d.sourceAnalysis.graph.statements[0].representation.subjectConceptId = "unknown"; }, "reference", "subjectConceptId"],
+  ["unknown object", d => { d.sourceAnalysis.graph.statements[0].representation.objectConceptId = "unknown"; }, "reference", "objectConceptId"],
   ["unknown statement evidence", d => { d.sourceAnalysis.graph.statements[0].evidenceIds = ["unknown"]; }, "reference", "evidenceIds"],
-  ["cross-topic edge", d => { d.sourceAnalysis.graph.topics.push({ id: "other", title: "Other" }); d.sourceAnalysis.graph.concepts[1].topicId = "other"; }, "invariant", "objectConceptId"],
+  ["cross-document concept", d => { d.sourceAnalysis.graph.concepts[1].documentId = "other"; }, "reference", "documentId"],
   ["cross-topic summary", d => { d.sourceAnalysis.graph.topics.push({ id: "other", title: "Other" }); d.sourceAnalysis.lessonSections[0].topicId = "other"; }, "invariant", "statementIds"],
   ["unknown lesson statement", d => { d.sourceAnalysis.lessonSections[0].keyPoints[0].statementIds = ["unknown"]; }, "reference", "keyPoints"],
   ["missing topic section", d => d.sourceAnalysis.graph.topics.push({ id: "other", title: "Other" }), "invariant", "lessonSections"],
@@ -193,9 +186,8 @@ const invalidCases = [
   ["fabricated text evidence page", d => { d.sourceAnalysis.graph.evidence[0].location.page = 1; }, "evidence", "page"],
   ["mismatched PDF page", d => { d.sourceAnalysis.document.kind = "pdf"; d.sourceAnalysis.document.blocks[0].location = { page: 2 }; d.sourceAnalysis.graph.evidence[0].location.page = 3; }, "evidence", "page"],
   ["zero page", d => { d.sourceAnalysis.document.blocks[0].location = { page: 0 }; }, "shape", "page"],
-  ["source topic with source mapping", d => { d.sourceAnalysis.graph.topics[0].sourceTopicId = "photosynthesis"; }, "invariant", "sourceTopicId"],
-  ["learner topic without mapping", d => { delete d.evaluation.learnerGraph.topics[0].sourceTopicId; }, "reference", "sourceTopicId"],
-  ["learner mapping to nonexistent topic", d => { d.evaluation.learnerGraph.topics[0].sourceTopicId = "unknown"; }, "reference", "sourceTopicId"],
+  ["source topic with source mapping", d => { d.sourceAnalysis.graph.topics[0].sourceTopicId = "photosynthesis"; }, "shape", "sourceTopicId"],
+  ["learner mapping to nonexistent topic", d => { d.evaluation.learnerGraph.topics[0].sourceTopicId = "unknown"; }, "shape", "sourceTopicId"],
   ["wrong statement graph reference", d => { d.evaluation.comparisons[0].learnerStatements[0].graphId = "source-graph"; }, "reference", "graphId"],
   ["unknown comparison statement", d => { d.evaluation.comparisons[0].sourceStatements[0].statementId = "unknown"; }, "reference", "statementId"],
   ["wrong source analysis", d => { d.evaluation.sourceAnalysisId = "unknown"; }, "reference", "sourceAnalysisId"],
@@ -220,7 +212,7 @@ for (const [name, mutate, code, path] of invalidCases) {
 }
 
 test("malformed JSON values fail cleanly without throwing", () => {
-  for (const input of [null, false, 3, "text", [], {}, { sourceAnalysis: null }, { schemaVersion: "1.0", source: null }]) {
+  for (const input of [null, false, 3, "text", [], {}, { sourceAnalysis: null }, { schemaVersion: "2.0", source: null }]) {
     assert.equal(validateDemo(input).valid, false);
     assert.equal(validateSourceAnalysis(input).valid, false);
     assert.equal(validateAnalyzeSourceRequest(input).valid, false);

@@ -5,13 +5,14 @@ import { mockAnalysis } from "./ui-source-fixture";
 import { normalizeEvaluation } from "../src/backend/explanations/evaluation";
 import type { EvaluateTextRequest } from "../src/backend/contracts/api";
 test.use({ baseURL: `http://localhost:${process.env.PLAYWRIGHT_PORT ?? "3000"}` });
-const envelope = (data: unknown) => JSON.stringify({ ok: true, schemaVersion: "1.0", data });
-const error = JSON.stringify({ ok: false, schemaVersion: "1.0", error: { code: "AI_RATE_LIMITED", message: "Mock quota reached.", retryable: true } });
+const envelope = (data: unknown) => JSON.stringify({ ok: true, schemaVersion: "2.0", data });
+const error = JSON.stringify({ ok: false, schemaVersion: "2.0", error: { code: "AI_RATE_LIMITED", message: "Mock quota reached.", retryable: true } });
 
 function mockEvaluation(input: EvaluateTextRequest) {
   const topicId = input.sourceAnalysis.graph.statements[0].topicId;
   return normalizeEvaluation(input, JSON.stringify({
-    claims: [{ id: "claim", topicId, subject: "Glucose", relation: "stores", object: "Energy", assertion: input.learner.text, negated: false, conditions: [], quote: input.learner.text }],
+    concepts: [{ id: "g", name: "Glucose", aliases: [] }, { id: "e", name: "Energy", aliases: [] }],
+    claims: [{ id: "claim", representation: { kind: "binary", subjectConceptId: "g", relation: "stores", objectConceptId: "e" }, assertion: input.learner.text, negated: false, conditions: [], quote: input.learner.text }],
     comparisons: input.sourceAnalysis.graph.statements.map((s, i) => ({ referenceRelationshipId: s.id, status: i === 0 ? "correct" : "missing", learnerClaimIds: i === 0 ? ["claim"] : [], explanation: "Synthetic feedback for UI testing.", suggestions: [] })), additionalIdeas: [],
   }));
 }

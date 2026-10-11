@@ -1,5 +1,8 @@
 # ExplainBack - Source ingestion (Block 2)
 
+Current graph/API contract: [v2 migration and architecture](backend-contract-v2.md).
+
+
 ## Delivered scope
 
 `POST /api/sources` accepts one text source or one genuine PDF/DOCX file, extracts
@@ -48,7 +51,7 @@ Content-Type: `application/json` (UTF-8).
 
 ```json
 {
-  "schemaVersion": "1.0",
+  "schemaVersion": "2.0",
   "source": {
     "kind": "text",
     "title": "Photosynthesis",
@@ -85,9 +88,9 @@ This complete example uses readable IDs for documentation; actual responses use 
 ```json
 {
   "ok": true,
-  "schemaVersion": "1.0",
+  "schemaVersion": "2.0",
   "data": {
-    "schemaVersion": "1.0",
+    "schemaVersion": "2.0",
     "document": {
       "id": "source-example",
       "kind": "text",
@@ -172,7 +175,7 @@ Errors use the existing `ApiResponse` envelope and non-200 status codes:
 ```json
 {
   "ok": false,
-  "schemaVersion": "1.0",
+  "schemaVersion": "2.0",
   "error": {
     "code": "OCR_UNSUPPORTED",
     "message": "PDF has no usable text layer. Scanned/image-only PDFs require OCR, which is not supported.",
@@ -208,7 +211,7 @@ In the second terminal, send text:
 
 ```powershell
 $sourceRequest = @{
-  schemaVersion = "1.0"
+  schemaVersion = "2.0"
   source = @{
     kind = "text"
     title = "Synthetic lesson"

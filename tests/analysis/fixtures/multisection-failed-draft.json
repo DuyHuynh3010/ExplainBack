@@ -1,0 +1,393 @@
+{
+  "blockDispositions": [
+    {
+      "blockId": "block-0",
+      "kind": "knowledge"
+    },
+    {
+      "blockId": "block-1",
+      "kind": "knowledge"
+    },
+    {
+      "blockId": "block-2",
+      "kind": "knowledge"
+    },
+    {
+      "blockId": "block-3",
+      "kind": "knowledge"
+    },
+    {
+      "blockId": "block-4",
+      "kind": "knowledge"
+    }
+  ],
+  "topics": [
+    {
+      "id": "topic_photosynthesis_overview",
+      "title": "Photosynthesis Overview"
+    },
+    {
+      "id": "topic_process",
+      "title": "The Process"
+    },
+    {
+      "id": "topic_chlorophyll",
+      "title": "Chlorophyll"
+    },
+    {
+      "id": "topic_stages",
+      "title": "Light-dependent and Light-independent Reactions"
+    },
+    {
+      "id": "topic_types",
+      "title": "C3 and C4 Photosynthesis"
+    }
+  ],
+  "concepts": [
+    {
+      "id": "concept_photosynthesis",
+      "topicId": "topic_photosynthesis_overview",
+      "name": "photosynthesis",
+      "aliases": []
+    },
+    {
+      "id": "concept_water",
+      "topicId": "topic_process",
+      "name": "water",
+      "aliases": [
+        "H2O"
+      ]
+    },
+    {
+      "id": "concept_oxygen",
+      "topicId": "topic_process",
+      "name": "oxygen",
+      "aliases": [
+        "O2"
+      ]
+    },
+    {
+      "id": "concept_carbon_dioxide",
+      "topicId": "topic_process",
+      "name": "carbon dioxide",
+      "aliases": [
+        "CO2"
+      ]
+    },
+    {
+      "id": "concept_glucose",
+      "topicId": "topic_process",
+      "name": "glucose",
+      "aliases": [
+        "sugar"
+      ]
+    },
+    {
+      "id": "concept_chloroplasts",
+      "topicId": "topic_chlorophyll",
+      "name": "chloroplasts",
+      "aliases": []
+    },
+    {
+      "id": "concept_thylakoid_membranes",
+      "topicId": "topic_chlorophyll",
+      "name": "thylakoid membranes",
+      "aliases": []
+    },
+    {
+      "id": "concept_chlorophyll",
+      "topicId": "topic_chlorophyll",
+      "name": "chlorophyll",
+      "aliases": []
+    },
+    {
+      "id": "concept_light_dependent_reactions",
+      "topicId": "topic_stages",
+      "name": "light-dependent reactions",
+      "aliases": [
+        "light-dependent reaction"
+      ]
+    },
+    {
+      "id": "concept_light_independent_reactions",
+      "topicId": "topic_stages",
+      "name": "light-independent reactions",
+      "aliases": [
+        "light-independent stage",
+        "Calvin cycle"
+      ]
+    },
+    {
+      "id": "concept_atp",
+      "topicId": "topic_stages",
+      "name": "ATP",
+      "aliases": []
+    },
+    {
+      "id": "concept_nadph",
+      "topicId": "topic_stages",
+      "name": "NADPH",
+      "aliases": []
+    },
+    {
+      "id": "concept_c3_photosynthesis",
+      "topicId": "topic_types",
+      "name": "C3 photosynthesis",
+      "aliases": []
+    },
+    {
+      "id": "concept_c4_photosynthesis",
+      "topicId": "topic_types",
+      "name": "C4 photosynthesis",
+      "aliases": []
+    },
+    {
+      "id": "concept_3_phosphoglyceric_acid",
+      "topicId": "topic_types",
+      "name": "3-phosphoglyceric acid",
+      "aliases": [
+        "three-carbon compound"
+      ]
+    }
+  ],
+  "statements": [
+    {
+      "id": "stmt_1",
+      "topicId": "topic_photosynthesis_overview",
+      "subjectConceptId": "concept_photosynthesis",
+      "relation": "carried_out_by",
+      "objectConceptId": "concept_photosynthesis",
+      "assertion": "Photosynthesis is carried out by plants, algae, and some types of bacteria.",
+      "negated": false,
+      "conditions": [],
+      "role": "fact",
+      "evidence": [
+        {
+          "blockId": "block-0",
+          "quote": "The process is carried out by plants, algae, and some types of bacteria, which capture energy from sunlight to produce oxygen (O2) and chemical energy stored in glucose (a sugar)."
+        }
+      ]
+    },
+    {
+      "id": "stmt_2",
+      "topicId": "topic_process",
+      "subjectConceptId": "concept_water",
+      "relation": "transformed_into",
+      "objectConceptId": "concept_oxygen",
+      "assertion": "Water is transformed into oxygen during photosynthesis.",
+      "negated": false,
+      "conditions": [],
+      "role": "mechanism",
+      "evidence": [
+        {
+          "blockId": "block-1",
+          "quote": "This transforms the water into oxygen and the carbon dioxide into glucose."
+        }
+      ]
+    },
+    {
+      "id": "stmt_3",
+      "topicId": "topic_process",
+      "subjectConceptId": "concept_carbon_dioxide",
+      "relation": "transformed_into",
+      "objectConceptId": "concept_glucose",
+      "assertion": "Carbon dioxide is transformed into glucose during photosynthesis.",
+      "negated": false,
+      "conditions": [],
+      "role": "mechanism",
+      "evidence": [
+        {
+          "blockId": "block-1",
+          "quote": "This transforms the water into oxygen and the carbon dioxide into glucose."
+        }
+      ]
+    },
+    {
+      "id": "stmt_4",
+      "topicId": "topic_chlorophyll",
+      "subjectConceptId": "concept_chloroplasts",
+      "relation": "located_inside",
+      "objectConceptId": "concept_chloroplasts",
+      "assertion": "Chloroplasts are located inside the plant cell.",
+      "negated": false,
+      "conditions": [],
+      "role": "definition",
+      "evidence": [
+        {
+          "blockId": "block-2",
+          "quote": "Inside the plant cell are small organelles called chloroplasts, which store the energy of sunlight."
+        }
+      ]
+    },
+    {
+      "id": "stmt_5",
+      "topicId": "topic_chlorophyll",
+      "subjectConceptId": "concept_chlorophyll",
+      "relation": "located_within",
+      "objectConceptId": "concept_thylakoid_membranes",
+      "assertion": "Chlorophyll is located within the thylakoid membranes of the chloroplast.",
+      "negated": false,
+      "conditions": [],
+      "role": "definition",
+      "evidence": [
+        {
+          "blockId": "block-2",
+          "quote": "Within the thylakoid membranes of the chloroplast is a light-absorbing pigment called chlorophyll, which is responsible for giving the plant its green color."
+        }
+      ]
+    },
+    {
+      "id": "stmt_6",
+      "topicId": "topic_stages",
+      "subjectConceptId": "concept_light_dependent_reactions",
+      "relation": "takes_place_in",
+      "objectConceptId": "concept_thylakoid_membranes",
+      "assertion": "The light-dependent reaction takes place within the thylakoid membrane.",
+      "negated": false,
+      "conditions": [],
+      "role": "fact",
+      "evidence": [
+        {
+          "blockId": "block-3",
+          "quote": "The light-dependent reaction takes place within the thylakoid membrane and requires a steady stream of sunlight, hence the name light-*dependent* reaction."
+        }
+      ]
+    },
+    {
+      "id": "stmt_7",
+      "topicId": "topic_stages",
+      "subjectConceptId": "concept_light_independent_reactions",
+      "relation": "takes_place_in",
+      "objectConceptId": "concept_thylakoid_membranes",
+      "assertion": "The light-independent stage takes place in the stroma, the space between the thylakoid membranes and the chloroplast membranes.",
+      "negated": false,
+      "conditions": [],
+      "role": "fact",
+      "evidence": [
+        {
+          "blockId": "block-3",
+          "quote": "The light-independent stage, also known as the Calvin cycle, takes place in the stroma, the space between the thylakoid membranes and the chloroplast membranes, and does not require light, hence the name light-*independent* reaction."
+        }
+      ]
+    },
+    {
+      "id": "stmt_8",
+      "topicId": "topic_types",
+      "subjectConceptId": "concept_c3_photosynthesis",
+      "relation": "produces",
+      "objectConceptId": "concept_3_phosphoglyceric_acid",
+      "assertion": "C3 photosynthesis involves producing a three-carbon compound called 3-phosphoglyceric acid during the Calvin Cycle.",
+      "negated": false,
+      "conditions": [],
+      "role": "mechanism",
+      "evidence": [
+        {
+          "blockId": "block-4",
+          "quote": "It involves producing a three-carbon compound called 3-phosphoglyceric acid during the Calvin Cycle, which goes on to become glucose."
+        }
+      ]
+    },
+    {
+      "id": "stmt_9",
+      "topicId": "topic_types",
+      "subjectConceptId": "concept_c4_photosynthesis",
+      "relation": "produces",
+      "objectConceptId": "concept_3_phosphoglyceric_acid",
+      "assertion": "C4 photosynthesis produces a four-carbon intermediate compound, which splits into carbon dioxide and a three-carbon compound during the Calvin Cycle.",
+      "negated": false,
+      "conditions": [],
+      "role": "mechanism",
+      "evidence": [
+        {
+          "blockId": "block-4",
+          "quote": "C4 photosynthesis, on the other hand, produces a four-carbon intermediate compound, which splits into carbon dioxide and a three-carbon compound during the Calvin Cycle."
+        }
+      ]
+    }
+  ],
+  "lessonSections": [
+    {
+      "topicId": "topic_photosynthesis_overview",
+      "summary": "Photosynthesis is crucial for life and is performed by plants, algae, and some bacteria.",
+      "statementIds": [
+        "stmt_1"
+      ],
+      "keyPoints": [
+        {
+          "text": "Photosynthesis is carried out by plants, algae, and certain bacteria.",
+          "statementIds": [
+            "stmt_1"
+          ]
+        }
+      ]
+    },
+    {
+      "topicId": "topic_process",
+      "summary": "Water and carbon dioxide are transformed into oxygen and glucose during photosynthesis.",
+      "statementIds": [
+        "stmt_2",
+        "stmt_3"
+      ],
+      "keyPoints": [
+        {
+          "text": "Water is transformed into oxygen and carbon dioxide into glucose.",
+          "statementIds": [
+            "stmt_2",
+            "stmt_3"
+          ]
+        }
+      ]
+    },
+    {
+      "topicId": "topic_chlorophyll",
+      "summary": "Chloroplasts and chlorophyll are key cellular components for capturing light energy.",
+      "statementIds": [
+        "stmt_4",
+        "stmt_5"
+      ],
+      "keyPoints": [
+        {
+          "text": "Chloroplasts are inside plant cells and chlorophyll is located within their thylakoid membranes.",
+          "statementIds": [
+            "stmt_4",
+            "stmt_5"
+          ]
+        }
+      ]
+    },
+    {
+      "topicId": "topic_stages",
+      "summary": "Photosynthesis consists of light-dependent and light-independent stages taking place in different parts of the chloroplast.",
+      "statementIds": [
+        "stmt_6",
+        "stmt_7"
+      ],
+      "keyPoints": [
+        {
+          "text": "Light-dependent reactions occur in the thylakoid membrane, while light-independent reactions take place in the stroma.",
+          "statementIds": [
+            "stmt_6",
+            "stmt_7"
+          ]
+        }
+      ]
+    },
+    {
+      "topicId": "topic_types",
+      "summary": "Different types of photosynthesis include C3 and C4 photosynthesis with varying intermediate compounds.",
+      "statementIds": [
+        "stmt_8",
+        "stmt_9"
+      ],
+      "keyPoints": [
+        {
+          "text": "C3 photosynthesis produces 3-phosphoglyceric acid, whereas C4 photosynthesis produces a four-carbon intermediate compound.",
+          "statementIds": [
+            "stmt_8",
+            "stmt_9"
+          ]
+        }
+      ]
+    }
+  ]
+}

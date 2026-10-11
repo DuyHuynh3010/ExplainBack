@@ -1,5 +1,8 @@
 # ExplainBack - Transcription and evaluation (Blocks 3B/3C)
 
+Current graph/API contract: [v2 migration and architecture](backend-contract-v2.md).
+
+
 ## Implemented local flow
 
 `text/PDF/DOCX -> /api/sources -> ImportedSource -> /api/analysis -> SourceAnalysis -> learner text or audio -> editable transcript -> /api/evaluations -> feedback`.
@@ -48,7 +51,7 @@ Successful response (`TranscriptionResponse`):
 ```json
 {
   "ok": true,
-  "schemaVersion": "1.0",
+  "schemaVersion": "2.0",
   "data": {
     "transcript": "Glucose does not store chemical energy.",
     "language": "en",
@@ -95,7 +98,7 @@ JSON `EvaluateTextRequest`:
 
 ```ts
 {
-  schemaVersion: "1.0",
+  schemaVersion: "2.0",
   importedSource, // complete validated ingestion payload
   sourceAnalysis, // complete existing analysis, unchanged IDs
   topicIds: sourceAnalysis.graph.topics.map(topic => topic.id),
@@ -123,11 +126,12 @@ Output is `ApiResponse<EvaluationResult>` using the existing domain contract:
 - The source graph is not replaced. `sourceAnalysisId` points to the supplied
   analysis, and every comparison has its original `referenceRelationshipId` plus
   `sourceStatements: [{ graphId, statementId }]` pointing into that source graph.
-- Block 3C returns one comparison per selected reference statement. The new
-  relationship ID alias is optional for old grouped examples; when supplied it
-  must match the sole source reference. New endpoint outputs always include it.
-- Learner graph/document/concepts/statements/evidence receive new opaque IDs;
-  learner topics explicitly map to selected source topic IDs.
+- Block 3C returns one comparison per selected reference statement, binary or
+  complex. `referenceRelationshipId` is required and must match its sole source
+  reference; matching does not depend on topic order or learner claim order.
+- Learner graph/document/concepts/statements/evidence receive new opaque IDs.
+  Learner concepts belong to the learner document; learner topics are independent
+  of source topics. Comparisons retain source topic IDs for frontend grouping.
 - Source evidence is resolved through the source reference and statement's
   `evidenceIds`; learner evidence through `learnerStatements` and learner graph
   `evidenceIds`. Quotes are not duplicated into a parallel feedback schema.
@@ -135,13 +139,14 @@ Output is `ApiResponse<EvaluationResult>` using the existing domain contract:
   `contradicted` means incompatible meaning/polarity; `missing` means not expressed
   in this explanation, not a conclusion about the learner's understanding;
   `uncertain` means insufficient support to classify.
-- Missing has no learner statement/evidence. Each claim belongs to one comparison
-  or additional idea under the existing v1 matching contract. Split compound
-  assertions atomically; a real quoted sentence can support multiple atomic claims.
+- Missing has no learner statement/evidence. One learner claim may support multiple reference IDs, and multiple
+  learner claims may support one reference. Learner topics/headings/order do not
+  need to match the source. Binary and complex claims both retain real quotes.
 - Additional ideas remain separate and have no automatic correctness status.
 
 Backend validation rejects malformed JSON, extra fields, wrong IDs/topics,
-incomplete coverage, double-counted claims, fabricated quotes and invalid ranges.
+incomplete reference coverage, duplicate source verdicts, claims classified both as
+matched and additional, fabricated quotes and invalid ranges.
 Learner quotes are located in the **exact submitted text**, with UTF-16 block-local
 exclusive ranges computed by the backend. Source ranges retain their existing
 coordinate system; imported original/normalized ranges are not substituted for
@@ -152,7 +157,7 @@ The learner's original text, negation, conditions and mistaken assertion are pre
 
 ## Errors and diagnostics
 
-Both routes return `{ ok: false, schemaVersion: "1.0", error: { code, message,
+Both routes return `{ ok: false, schemaVersion: "2.0", error: { code, message,
 retryable } }`, `Cache-Control: no-store` and `X-Request-ID`. Existing error codes
 are reused; `TRANSCRIPTION_FAILED` covers unexpected internal transcription errors.
 

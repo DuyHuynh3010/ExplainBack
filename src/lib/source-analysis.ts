@@ -3,7 +3,7 @@ import type { ImportedSource, SourceAnalysis } from "@/backend/contracts/domain"
 import { validateImportedAnalysisResponse } from "@/backend/contracts/validate";
 
 export async function analyzeLearningSource(importedSource: ImportedSource, signal?: AbortSignal): Promise<SourceAnalysis> {
-  const request: AnalyzeImportedSourceRequest = { schemaVersion: "1.0", importedSource };
+  const request: AnalyzeImportedSourceRequest = { schemaVersion: "2.0", importedSource };
   const response = await fetch("/api/analysis", {
     method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(request), signal,
   });

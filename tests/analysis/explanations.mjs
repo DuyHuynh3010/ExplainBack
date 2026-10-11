@@ -17,7 +17,7 @@ const { toReferenceFlow } = require("../../test-results/analysis-build/lib/refer
 const importedSource = importText(endpointSource);
 const sourceAnalysis = normalizeAnalysisDraft(importedSource, endpointDraft(importedSource));
 const topicId = sourceAnalysis.graph.topics[0].id;
-const input = learner => ({ schemaVersion: "1.0", importedSource, sourceAnalysis, topicIds: [topicId], learner: { text: learner } });
+const input = learner => ({ schemaVersion: "2.0", importedSource, sourceAnalysis, topicIds: [topicId], learner: { text: learner } });
 export function wav(seconds = 1, sampleRate = 16000) {
   const b = Buffer.alloc(44 + Math.round(seconds * sampleRate) * 2);
   b.write("RIFF"); b.writeUInt32LE(b.length - 8, 4); b.write("WAVEfmt ", 8); b.writeUInt32LE(16, 16);
@@ -27,9 +27,9 @@ export function wav(seconds = 1, sampleRate = 16000) {
 const provider = value => ({ calls: 0, async generate(request) { this.calls++; this.request = request; if (value instanceof Error) throw value; return { text: JSON.stringify(value), finishReason: "stop" }; } });
 const multipart = (bytes = wav(), field = "audioFile") => { const form = new FormData(); form.append(field, new Blob([bytes], { type: "audio/webm" }), "misleading.webm"); return new Request("http://local/api/transcriptions", { method: "POST", body: form }); };
 const jsonRequest = value => new Request("http://local/api/evaluations", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(value) });
-const claim = (quote, overrides = {}) => ({ id: "c1", topicId, subject: "Photosynthesis", relation: "produces", object: "Glucose", assertion: quote, negated: false, conditions: [], quote, ...overrides });
+const claim = (quote, overrides = {}) => ({ id: "c1", representation: { kind: "binary", subjectConceptId: "p", relation: "produces", objectConceptId: "g" }, assertion: quote, negated: false, conditions: [], quote, ...overrides });
 function draft(status, claims = []) {
-  return { claims, comparisons: sourceAnalysis.graph.statements.map((s, i) => ({ referenceRelationshipId: s.id, status: i === 0 ? status : "missing", learnerClaimIds: i === 0 ? claims.map(c => c.id) : [], explanation: "Hand-authored offline explanation.", suggestions: [] })), additionalIdeas: [] };
+  return { concepts: [{ id: "p", name: "Photosynthesis", aliases: ["The process"] }, { id: "g", name: "Glucose", aliases: ["sugar", "a product"] }], claims, comparisons: sourceAnalysis.graph.statements.map((s, i) => ({ referenceRelationshipId: s.id, status: i === 0 ? status : "missing", learnerClaimIds: i === 0 ? claims.map(c => c.id) : [], explanation: "Hand-authored offline explanation.", suggestions: [] })), additionalIdeas: [] };
 }
 
 test("audio sniffs WAV bytes, not uploaded MIME/file name, and measures duration", () => {
@@ -94,7 +94,7 @@ test("missing has no learner statements or fabricated quote", () => {
   assert.deepEqual(result.learnerGraph.evidence, []); assert.ok(result.comparisons.every(c => c.status === "missing" && c.learnerStatements.length === 0));
 });
 test("additional idea is stored separately without incorrect status", () => {
-  const text = "Plants look beautiful."; const d = draft("missing", []); d.claims = [claim(text)]; d.additionalIdeas = [{ topicId, learnerClaimIds: ["c1"], explanation: "Not addressed by the source." }];
+  const text = "Plants look beautiful."; const d = draft("missing", []); d.claims = [claim(text)]; d.additionalIdeas = [{ learnerClaimIds: ["c1"], explanation: "Not addressed by the source." }];
   const result = normalizeEvaluation(input(text), JSON.stringify(d)); assert.equal(result.additionalIdeas.length, 1); assert.equal(result.additionalIdeas[0].status, undefined);
 });
 test("ambiguous repeated quote becomes uncertain without invented range", () => {
@@ -107,7 +107,7 @@ test("quote context disambiguates occurrences and preserves UTF-16 offsets", () 
   const result = normalizeEvaluation(input(text), JSON.stringify(draft("correct", [claim("Sugar is made.", { contextBefore: "🌱 " })])));
   assert.equal(result.comparisons[0].status, "correct"); assert.equal(result.learnerGraph.evidence[0].location.charRange.start, 3);
 });
-for (const [name, change] of [["fabricated quote", d => d.claims[0].quote = "invented"], ["unknown reference", d => d.comparisons[0].referenceRelationshipId = "wrong"], ["wrong topic", d => d.claims[0].topicId = "wrong"], ["duplicate claim", d => d.claims.push(d.claims[0])], ["missing with learner quote", d => d.comparisons[0].status = "missing"], ["uncovered source relationship", d => d.comparisons.pop()], ["unknown learner claim", d => d.comparisons[0].learnerClaimIds = ["unknown"]], ["unknown additional field", d => d.score = 100], ["claim double counted", d => d.additionalIdeas = [{ topicId, learnerClaimIds: ["c1"], explanation: "extra" }]]]) {
+for (const [name, change] of [["fabricated quote", d => d.claims[0].quote = "invented"], ["unknown reference", d => d.comparisons[0].referenceRelationshipId = "wrong"], ["wrong topic", d => d.claims[0].topicId = "wrong"], ["duplicate claim", d => d.claims.push(d.claims[0])], ["missing with learner quote", d => d.comparisons[0].status = "missing"], ["uncovered source relationship", d => d.comparisons.pop()], ["unknown learner claim", d => d.comparisons[0].learnerClaimIds = ["unknown"]], ["unknown additional field", d => d.score = 100], ["claim double counted", d => d.additionalIdeas = [{ learnerClaimIds: ["c1"], explanation: "extra" }]]]) {
   test(`evaluation rejects ${name}`, () => { const text = "Photosynthesis produces glucose."; const d = draft("correct", [claim(text)]); change(d); assert.throws(() => normalizeEvaluation(input(text), JSON.stringify(d)), e => e.code === "AI_OUTPUT_INVALID"); });
 }
 test("evaluation preserves conditions and erroneous claims rather than correcting them", () => {
@@ -118,7 +118,7 @@ test("evaluation preserves conditions and erroneous claims rather than correctin
 test("endpoint requires full matching ingestion and never reanalyses source", async () => {
   const text = "Photosynthesis produces glucose.", body = input(text), p = provider(draft("correct", [claim(text)]));
   assert.equal((await handleEvaluationRequest(jsonRequest(body), p)).status, 200); assert.equal(p.calls, 1);
-  assert.match(p.request.systemInstruction, /not general knowledge or word overlap/); assert.match(p.request.systemInstruction, /endpoints disagree/);
+  assert.match(p.request.systemInstruction, /not word overlap or external knowledge/); assert.match(p.request.systemInstruction, /assertion/);
   assert.equal(JSON.parse(evaluationPrompt(body)).source.relationships[0].id, sourceAnalysis.graph.statements[0].id);
   const noSource = { ...body }; delete noSource.importedSource; assert.throws(() => validateEvaluationInput(noSource));
   const mismatch = structuredClone(body); mismatch.importedSource.document.id = "wrong"; assert.throws(() => validateEvaluationInput(mismatch));
@@ -139,4 +139,29 @@ test("Gemini audio transport sends structured inline data with exactly one SDK a
   const p = createGeminiProvider({ GEMINI_API_KEY: "synthetic-test-key", GEMINI_MODEL: "synthetic-test-model" }, async (_url, options) => { calls++; sent = JSON.parse(options.body); return Response.json({ candidates: [{ finishReason: "STOP", content: { parts: [{ text: '{"transcript":"OK"}' }] } }] }); });
   await p.generate({ prompt: "Transcribe.", systemInstruction: "Verbatim.", schema: { type: "object", properties: { transcript: { type: "string" } }, required: ["transcript"], additionalProperties: false }, audio: { mimeType: "audio/wav", data: "AA==" }, maxOutputTokens: 100, signal: new AbortController().signal });
   assert.equal(calls, 1); assert.equal(sent.contents[0].parts[1].inlineData.mimeType, "audio/wav"); assert.equal(sent.generationConfig.responseMimeType, "application/json");
+});
+
+
+test("v2: reordered learner claims, shared matches and complex references retain source identity", async () => {
+  const { globalSource, globalDraft } = await import("./global-fixture.mjs");
+  const imported = importText(globalSource), analysis = normalizeAnalysisDraft(imported, globalDraft(imported));
+  const learnerText = "Plants use water and carbon dioxide together to produce glucose. Glucose retains chemical energy. Photosynthesis does not produce oxygen. Photosynthesis makes glucose.";
+  const request = { schemaVersion: "2.0", importedSource: imported, sourceAnalysis: analysis, topicIds: analysis.graph.topics.map(t => t.id).reverse(), learner: { text: learnerText } };
+  const canonical = globalDraft(imported), concepts = canonical.concepts;
+  const claims = [...canonical.statements].reverse().map(s => ({ id: s.id, representation: s.representation, assertion: s.assertion, negated: s.negated, conditions: s.conditions, quote: s.assertion }));
+  const storage = claims.find(c => c.id === "stores"); storage.quote = storage.assertion = "Glucose retains chemical energy."; storage.representation.relation = "retains";
+  const oxygen = claims.find(c => c.id === "oxygen"); oxygen.quote = oxygen.assertion = "Photosynthesis does not produce oxygen."; oxygen.negated = true;
+  const glucose = claims.find(c => c.id === "glucose"); glucose.quote = glucose.assertion = "Photosynthesis makes glucose."; glucose.representation.relation = "makes";
+  const comparisons = analysis.graph.statements.map((s, i) => ({ referenceRelationshipId: s.id, status: i === 1 ? "contradicted" : "correct", learnerClaimIds: [canonical.statements[i].id], explanation: "Synthetic semantic verdict, not a live model claim.", suggestions: [] })).reverse();
+  // The complex joint claim also supports glucose production, independently of topic order.
+  comparisons.find(c => c.referenceRelationshipId === analysis.graph.statements[0].id).learnerClaimIds.push("joint");
+  const before = structuredClone(analysis), result = normalizeEvaluation(request, JSON.stringify({ concepts, claims, comparisons, additionalIdeas: [] }));
+  assert.deepEqual(analysis, before); assert.equal(result.sourceAnalysisId, analysis.id);
+  assert.equal(result.comparisons.find(c => c.referenceRelationshipId === analysis.graph.statements[1].id).status, "contradicted");
+  assert.equal(result.learnerGraph.topics.length, 1); assert.ok(!("sourceTopicId" in result.learnerGraph.topics[0]));
+  assert.ok(result.learnerGraph.statements.some(s => s.representation.kind === "complex"));
+  for (const topic of analysis.graph.topics) {
+    const flow = toEvaluatedFlow(analysis.graph, topic.id, result);
+    for (const edge of flow.edges) assert.equal(edge.label.split(":")[0].toLowerCase(), result.comparisons.find(c => c.referenceRelationshipId === edge.id).status);
+  }
 });

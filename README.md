@@ -6,6 +6,11 @@ An educational workspace that imports text/PDF/DOCX, analyzes sources through Ge
 
 Read the [GitHub Workflow & Team Rules (PDF)](docs/github-workflow-and-team-rules.pdf) for the project's collaboration workflow and team rules. The original PDF is included in the repository and is available after cloning.
 
+The current [graph/API contract is v2](docs/backend-contract-v2.md): document-wide
+concepts, binary relationships and complex statement cards. Reset/re-import v1
+sessions. See [verification results and remaining live extraction gaps](docs/graph-v2-verification.md)
+before treating a generated graph as verified knowledge.
+
 ## Run locally
 
 Requires Node.js 22 or later. Source ingestion uses `unpdf`, which requires Node.js 22+.

@@ -53,11 +53,11 @@ export async function handleExplanationOperation<T>(
       return result;
     } });
     diagnostic({ stage: `${operation}_complete`, call: calls, validation: "passed" });
-    return Response.json({ ok: true, schemaVersion: "1.0", data } satisfies ApiResponse<T>, { headers });
+    return Response.json({ ok: true, schemaVersion: "2.0", data } satisfies ApiResponse<T>, { headers });
   } catch (error) {
     const safe = error instanceof AnalysisError ? error : new AnalysisError(operation === "transcription" ? "TRANSCRIPTION_FAILED" : "EVALUATION_FAILED", 500, `${operation === "transcription" ? "Transcription" : "Evaluation"} could not be completed.`);
     diagnostic({ stage: `${operation}_failed`, call: calls, validation: "failed", code: safe.code });
     if (safe.retryAfterSeconds !== undefined) headers["retry-after"] = String(safe.retryAfterSeconds);
-    return Response.json({ ok: false, schemaVersion: "1.0", error: { code: safe.code, message: safe.message, retryable: safe.retryable } } satisfies ApiResponse<T>, { status: safe.status, headers });
+    return Response.json({ ok: false, schemaVersion: "2.0", error: { code: safe.code, message: safe.message, retryable: safe.retryable } } satisfies ApiResponse<T>, { status: safe.status, headers });
   }
 }

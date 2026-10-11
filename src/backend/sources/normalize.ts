@@ -87,7 +87,7 @@ export function buildImportedSource(
   if (!normalizedText.trim()) throw new SourceImportError("INVALID_REQUEST", 400, "Source text must not be empty.");
   if (normalizedText.length > SOURCE_LIMITS.textCharacters) tooLarge("Normalized source text exceeds 100,000 UTF-16 characters.");
   const source: ImportedSource = {
-    schemaVersion: "1.0", document: { id: documentId, kind, ...(title ? { title } : {}), blocks },
+    schemaVersion: "2.0", document: { id: documentId, kind, ...(title ? { title } : {}), blocks },
     originalSegments, normalizedText,
     metadata: {
       extractor: ({ text: "text", pdf: "unpdf", docx: "mammoth" } as const)[kind],

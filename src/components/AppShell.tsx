@@ -56,7 +56,7 @@ export function AppShell() {
   }
   async function evaluate() {
     if (!session.analysis || !session.importedSource || !explanationText.trim() || explanationFile) return;
-    await explanation.evaluate({ schemaVersion: "1.0", importedSource: session.importedSource, sourceAnalysis: session.analysis, topicIds: session.analysis.graph.topics.map(t => t.id), learner: { text: explanationText } });
+    await explanation.evaluate({ schemaVersion: "2.0", importedSource: session.importedSource, sourceAnalysis: session.analysis, topicIds: session.analysis.graph.topics.map(t => t.id), learner: { text: explanationText } });
   }
 
   return <>
